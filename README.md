@@ -67,10 +67,14 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 A seguir, a descrição de cada dataset gerado e o mapeamento dos campos da API para as colunas do arquivo Excel final.
 
-### 1. Produtos (SKUs)
+### Tabelas Fato
+
+---
+
+#### 1. Produtos (SKUs)
 
 - **Arquivo:** `involves_produtos_YYYY-MM-DD_HHMMSS.xlsx`
-- **Descrição:** Tabela fato principal, contendo todos os produtos e os IDs de referência para as dimensões.
+- **Descrição:** Tabela principal, contendo todos os produtos e os IDs de referência para as dimensões.
 
 | Campo na API (`sku`) | Coluna no Dataset  | Descrição                                                       |
 | :------------------- | :----------------- | :-------------------------------------------------------------- |
@@ -85,7 +89,32 @@ A seguir, a descrição de cada dataset gerado e o mapeamento dos campos da API 
 | `supercategory.id`   | `IDSUPERCATEGORIA` | Chave estrangeira para a tabela de Supercategorias.             |
 | `customFields`       | `CUSTOMFIELDS`     | Campos customizados, armazenados como um texto JSON.            |
 
-### 2. Marcas
+#### 2. Pontos de Venda (PDVs)
+
+- **Arquivo:** `involves_pdv_YYYY-MM-DD_HHMMSS.xlsx`
+- **Descrição:** Tabela com os dados cadastrais dos pontos de venda.
+
+| Campo na API (`pointofsale`) | Coluna no Dataset | Descrição                                                   |
+| :--------------------------- | :---------------- | :---------------------------------------------------------- |
+| `id`                         | `IDPDV`           | Identificador único do PDV.                                 |
+| `legalBusinessName`          | `RAZAOSOCIAL`     | Razão Social da empresa.                                    |
+| `tradeName`                  | `FANTASIA`        | Nome Fantasia do PDV.                                       |
+| `code`                       | `CODCLI`          | Código interno do cliente/PDV.                              |
+| `companyRegistrationNumber`  | `CNPJ`            | CNPJ do estabelecimento.                                    |
+| `phone`                      | `TELEFONE`        | Telefone de contato do PDV.                                 |
+| `active`                     | `ISACTIVE`        | Status booleano (True/False) indicando se o PDV está ativo. |
+| `macroregional.id`           | `IDMACROREGIONAL` | Chave estrangeira para a tabela de Macrorregionais.         |
+| `regional.id`                | `IDREGIONAL`      | Chave estrangeira para a tabela de Regionais.               |
+| `banner.id`                  | `IDBANNER`        | Chave estrangeira para a tabela de Banners/Bandeiras.       |
+| `type.id`                    | `IDTIPO`          | Chave estrangeira para a tabela de Tipos de PDV.            |
+| `profile.id`                 | `IDPERFIL`        | Chave estrangeira para a tabela de Perfis de PDV.           |
+| `channel.id`                 | `IDCANAL`         | Chave estrangeira para a tabela de Canais de Venda.         |
+
+### Tabelas de Dimensão
+
+---
+
+#### 3. Marcas
 
 - **Arquivo:** `involves_marcas_YYYY-MM-DD_HHMMSS.xlsx`
 - **Descrição:** Tabela de dimensão com todas as marcas.
@@ -95,7 +124,7 @@ A seguir, a descrição de cada dataset gerado e o mapeamento dos campos da API 
 | `id`                   | `ID`              | Identificador único da marca. |
 | `name`                 | `NOME`            | Nome da marca.                |
 
-### 3. Categorias
+#### 4. Categorias
 
 - **Arquivo:** `involves_categorias_YYYY-MM-DD_HHMMSS.xlsx`
 - **Descrição:** Tabela de dimensão com todas as categorias de produto. _Nota: Este arquivo pode não ser gerado se o endpoint de lista de categorias não existir na API._
@@ -106,7 +135,7 @@ A seguir, a descrição de cada dataset gerado e o mapeamento dos campos da API 
 | `name`                    | `NOME`             | Nome da categoria.                       |
 | `supercategory.id`        | `IDSUPERCATEGORIA` | Chave estrangeira para a Supercategoria. |
 
-### 4. Supercategorias
+#### 5. Supercategorias
 
 - **Arquivo:** `involves_supercategorias_YYYY-MM-DD_HHMMSS.xlsx`
 - **Descrição:** Tabela de dimensão com todas as supercategorias.
@@ -116,7 +145,7 @@ A seguir, a descrição de cada dataset gerado e o mapeamento dos campos da API 
 | `id`                           | `ID`              | Identificador único da supercategoria. |
 | `name`                         | `NOME`            | Nome da supercategoria.                |
 
-### 5. Linhas de Produto
+#### 6. Linhas de Produto
 
 - **Arquivo:** `involves_linhas_de_produto_YYYY-MM-DD_HHMMSS.xlsx`
 - **Descrição:** Tabela de dimensão com todas as linhas de produto.
