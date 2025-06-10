@@ -35,27 +35,22 @@ def _fetch_all_paginated_data(endpoint_name: str) -> list:
     return all_items
 
 def process_brands() -> list:
-    """Busca e formata os dados de marcas."""
     raw_data = _fetch_all_paginated_data('brands')
     return [{'ID': b.get('id'), 'NOME': b.get('name')} for b in raw_data if isinstance(b, dict)]
 
 def process_categories() -> list:
-    """Busca e formata os dados de categorias."""
     raw_data = _fetch_all_paginated_data('categories')
     return [{'ID': c.get('id'), 'NOME': c.get('name'), 'IDSUPERCATEGORIA': c.get('supercategory', {}).get('id')} for c in raw_data if isinstance(c, dict)]
 
 def process_supercategories() -> list:
-    """Busca e formata os dados de supercategorias."""
     raw_data = _fetch_all_paginated_data('supercategories')
     return [{'ID': sc.get('id'), 'NOME': sc.get('name')} for sc in raw_data if isinstance(sc, dict)]
 
 def process_productlines() -> list:
-    """Busca e formata os dados de linhas de produto."""
     raw_data = _fetch_all_paginated_data('productlines')
     return [{'ID': pl.get('id'), 'NOME': pl.get('name')} for pl in raw_data if isinstance(pl, dict)]
 
 def process_skus() -> list:
-    """Busca e formata os dados de produtos (SKUs)."""
     raw_data = _fetch_all_paginated_data('skus')
     
     print("\n--- Processando dataset de Produtos para o formato final ---")
@@ -85,4 +80,49 @@ def process_skus() -> list:
         }
         processed_data.append(row)
         
+    return processed_data
+
+def process_point_of_sales() -> list:
+    pdv_summaries = _fetch_all_paginated_data('pointofsales')
+    
+    print("\n--- Processando detalhes de cada Ponto de Venda ---")
+    processed_data = []
+    total_pdvs = len(pdv_summaries)
+
+    def to_str(value):
+        return str(value) if value is not None else None
+
+    for i, pdv_summary in enumerate(pdv_summaries):
+        if not isinstance(pdv_summary, dict):
+            continue
+        
+        pdv_id = pdv_summary.get('id')
+        if not pdv_id:
+            continue
+            
+        print(f"  > Buscando detalhes do PDV {i+1}/{total_pdvs} (ID: {pdv_id})...")
+        
+        detail_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales/{pdv_id}"
+        pdv_detail = get_api_data(detail_url)
+
+        if not pdv_detail:
+            continue
+
+        row = {
+            'IDPDV': to_str(pdv_detail.get('id')),
+            'RAZAOSOCIAL': pdv_detail.get('legalBusinessName'),
+            'FANTASIA': pdv_detail.get('tradeName'),
+            'CODCLI': to_str(pdv_detail.get('code')),
+            'CNPJ': pdv_detail.get('companyRegistrationNumber'),
+            'TELEFONE': pdv_detail.get('phone'), # Novo campo adicionado
+            'ISACTIVE': pdv_detail.get('active'),
+            'IDMACROREGIONAL': to_str(pdv_detail.get('macroregional').get('id')) if pdv_detail.get('macroregional') else None,
+            'IDREGIONAL': to_str(pdv_detail.get('regional').get('id')) if pdv_detail.get('regional') else None,
+            'IDBANNER': to_str(pdv_detail.get('banner').get('id')) if pdv_detail.get('banner') else None,
+            'IDTIPO': to_str(pdv_detail.get('type').get('id')) if pdv_detail.get('type') else None,
+            'IDPERFIL': to_str(pdv_detail.get('profile').get('id')) if pdv_detail.get('profile') else None,
+            'IDCANAL': to_str(pdv_detail.get('channel').get('id')) if pdv_detail.get('channel') else None
+        }
+        processed_data.append(row)
+
     return processed_data
