@@ -1,5 +1,6 @@
 import time
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import INVOLVES_BASE_URL, INVOLVES_ENVIRONMENT_ID
 from api_client import get_api_data
 
@@ -85,36 +86,35 @@ def process_skus() -> list:
 def process_point_of_sales() -> list:
     pdv_summaries = _fetch_all_paginated_data('pointofsales')
     
-    print("\n--- Processando detalhes de cada Ponto de Venda ---")
+    print("\n--- Processando detalhes de cada Ponto de Venda (utilizando threads) ---")
     processed_data = []
     total_pdvs = len(pdv_summaries)
+    MAX_WORKERS = 5
 
     def to_str(value):
         return str(value) if value is not None else None
 
-    for i, pdv_summary in enumerate(pdv_summaries):
+    def fetch_and_process_detail(pdv_summary):
         if not isinstance(pdv_summary, dict):
-            continue
+            return None
         
         pdv_id = pdv_summary.get('id')
         if not pdv_id:
-            continue
-            
-        print(f"  > Buscando detalhes do PDV {i+1}/{total_pdvs} (ID: {pdv_id})...")
+            return None
         
         detail_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales/{pdv_id}"
         pdv_detail = get_api_data(detail_url)
 
         if not pdv_detail:
-            continue
+            return None
 
-        row = {
+        return {
             'IDPDV': to_str(pdv_detail.get('id')),
             'RAZAOSOCIAL': pdv_detail.get('legalBusinessName'),
             'FANTASIA': pdv_detail.get('tradeName'),
             'CODCLI': to_str(pdv_detail.get('code')),
             'CNPJ': pdv_detail.get('companyRegistrationNumber'),
-            'TELEFONE': pdv_detail.get('phone'), # Novo campo adicionado
+            'TELEFONE': pdv_detail.get('phone'),
             'ISACTIVE': pdv_detail.get('active'),
             'IDMACROREGIONAL': to_str(pdv_detail.get('macroregional').get('id')) if pdv_detail.get('macroregional') else None,
             'IDREGIONAL': to_str(pdv_detail.get('regional').get('id')) if pdv_detail.get('regional') else None,
@@ -123,6 +123,25 @@ def process_point_of_sales() -> list:
             'IDPERFIL': to_str(pdv_detail.get('profile').get('id')) if pdv_detail.get('profile') else None,
             'IDCANAL': to_str(pdv_detail.get('channel').get('id')) if pdv_detail.get('channel') else None
         }
-        processed_data.append(row)
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_pdv = {executor.submit(fetch_and_process_detail, pdv): pdv for pdv in pdv_summaries}
+        
+        processed_count = 0
+        for future in as_completed(future_to_pdv):
+            try:
+                result = future.result()
+                if result:
+                    processed_data.append(result)
+            except Exception as exc:
+                print(f'Um PDV gerou uma exceção: {exc}')
+            
+            processed_count += 1
+            print(f"\r  > PDVs processados: {processed_count}/{total_pdvs}", end="", flush=True)
+            
+    print("\nProcessamento de detalhes concluído.")
+    
+    if processed_data:
+        processed_data.sort(key=lambda x: int(x['IDPDV']))
 
     return processed_data
