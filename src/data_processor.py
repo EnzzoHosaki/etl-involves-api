@@ -4,26 +4,36 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import INVOLVES_BASE_URL, INVOLVES_ENVIRONMENT_ID
 from api_client import get_api_data
 
-def _fetch_paginated_summaries(endpoint_name: str) -> list:
+def _fetch_all_paginated_data(base_url: str) -> list:
     all_items = []
     page_num = 1
-    base_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/{endpoint_name}"
+    endpoint_name = base_url.split('/')[-1] if '?' not in base_url else base_url.split('/')[-1].split('?')[0]
     
-    print(f"\n--- Iniciando extração de resumos para: '{endpoint_name}' ---")
+    print(f"\n--- Iniciando extração para: '{endpoint_name}' ---")
+
     while True:
-        paginated_url = f"{base_url}?page={page_num}&size=100"
+        separator = '&' if '?' in base_url else '?'
+        paginated_url = f"{base_url}{separator}page={page_num}&size=100"
         response_data = get_api_data(paginated_url)
-        if not response_data or not isinstance(response_data, dict): break
+
+        if not response_data:
+            break
         
-        items_on_page = response_data.get('items', [])
-        if not items_on_page: break
+        items_on_page = []
+        if isinstance(response_data, list):
+            items_on_page = response_data
+        elif isinstance(response_data, dict):
+            items_on_page = response_data.get('items', [])
+
+        if not items_on_page:
+            break
 
         all_items.extend(items_on_page)
         print(f"  > Página {page_num} processada. Total de {len(all_items)} itens acumulados.")
         page_num += 1
         time.sleep(0.2)
     
-    print(f"Extração de resumos de '{endpoint_name}' finalizada. Total de {len(all_items)} itens encontrados.")
+    print(f"Extração de '{endpoint_name}' finalizada. Total de {len(all_items)} itens encontrados.")
     return all_items
 
 def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
@@ -53,9 +63,9 @@ def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
 def process_product_dimensions():
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PRODUTO ---")
     
-    brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_paginated_summaries('brands') if isinstance(b, dict)]
-    supercategories = [{'ID': sc.get('id'), 'NOME': sc.get('name')} for sc in _fetch_paginated_summaries('supercategories') if isinstance(sc, dict)]
-    productlines = [{'ID': pl.get('id'), 'NOME': pl.get('name')} for pl in _fetch_paginated_summaries('productlines') if isinstance(pl, dict)]
+    brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_all_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/brands") if isinstance(b, dict)]
+    supercategories = [{'ID': sc.get('id'), 'NOME': sc.get('name')} for sc in _fetch_all_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/supercategories") if isinstance(sc, dict)]
+    productlines = [{'ID': pl.get('id'), 'NOME': pl.get('name')} for pl in _fetch_all_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/productlines") if isinstance(pl, dict)]
     
     return {
         "brands": brands,
@@ -64,7 +74,7 @@ def process_product_dimensions():
     }
 
 def process_skus() -> list:
-    raw_data = _fetch_paginated_summaries('skus')
+    raw_data = _fetch_all_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/skus")
     print("\n--- Processando dataset de Produtos para o formato final ---")
     processed_data = []
     to_str = lambda v: str(v) if v is not None else None
@@ -98,11 +108,10 @@ def process_categories_from_skus(all_skus: list) -> list:
 
     return [{'ID': c.get('id'), 'NOME': c.get('name'), 'IDSUPERCATEGORIA': c.get('supercategory', {}).get('id')} for c in category_details if isinstance(c, dict)]
 
-
 def process_all_pdv_related_data():
     print("\n--- INICIANDO EXTRAÇÃO DE PDVS E DIMENSÕES RELACIONADAS ---")
     
-    pdv_summaries = _fetch_paginated_summaries('pointofsales')
+    pdv_summaries = _fetch_all_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
     print("\n--- Processando detalhes de cada Ponto de Venda (utilizando threads) ---")
     url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales/{{id}}"
     pdv_ids = {pdv['id'] for pdv in pdv_summaries if pdv.get('id')}
@@ -116,7 +125,6 @@ def process_all_pdv_related_data():
     print("\n--- Coletando IDs de dimensão a partir dos PDVs ---")
     for pdv in pdv_details:
         if not isinstance(pdv, dict): continue
-        
         if pdv.get('macroregional'): dimension_ids['macroregional'].add(pdv.get('macroregional').get('id'))
         if pdv.get('regional'): dimension_ids['regional'].add(pdv.get('regional').get('id'))
         if pdv.get('banner'): dimension_ids['banner'].add(pdv.get('banner').get('id'))
@@ -166,3 +174,38 @@ def process_all_pdv_related_data():
         "pos_profiles": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in pos_profiles],
         "channels": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in channels],
     }
+
+def process_employees() -> list:
+    employee_summaries = _fetch_all_paginated_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/employeeenvironment")
+    
+    print("\n--- Processando detalhes de cada Colaborador (utilizando threads) ---")
+    employee_ids = {emp.get('id') for emp in employee_summaries if emp.get('id')}
+    detail_url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/employees/{{id}}"
+    employee_details = _fetch_details_in_parallel(detail_url_template, employee_ids)
+
+    print("\n--- Formatando dataset de Colaboradores ---")
+    processed_data = []
+    to_str = lambda v: str(v) if v is not None else None
+    
+    for emp in employee_details:
+        if not isinstance(emp, dict): continue
+        row = {
+            'IDCOLABORADOR': to_str(emp.get('id')),
+            'NOME': emp.get('name'),
+            'LOGIN': emp.get('login'),
+            'EMAIL': emp.get('email'),
+            'TELEFONE': emp.get('companyPhone'),
+            'CPF': to_str(emp.get('individualTaxpayerRegistration')),
+            'RG': to_str(emp.get('idNumber')),
+            'DATANASCIMENTO': emp.get('dateOfBirth'),
+            'SEXO': emp.get('gender'),
+            'ISACTIVE': emp.get('enabled'),
+            'IDSUPERVISOR': to_str(emp.get('supervisor', {}).get('id')),
+            'IDPERFILACESSO': to_str(emp.get('accessProfile', {}).get('id'))
+        }
+        processed_data.append(row)
+
+    if processed_data:
+        processed_data.sort(key=lambda x: int(x['IDCOLABORADOR']))
+
+    return processed_data
