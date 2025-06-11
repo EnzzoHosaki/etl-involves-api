@@ -71,96 +71,115 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 #### 1. Produtos (SKUs)
 
-- **Arquivo:** `involves_produtos_YYYY-MM-DD_HHMMSS.xlsx`
+- **Arquivo:** `involves_produtos_...`
 
-| Campo na API (`sku`) | Coluna no Dataset  |
-| :------------------- | :----------------- |
-| `id`                 | `IDPROD`           |
-| `name`               | `NOMEPROD`         |
-| `active`             | `ISACTIVE`         |
-| `barCode`            | `EAN`              |
-| `integrationCode`    | `CODPROD`          |
-| `productLine.id`     | `IDLINHAPRODUTO`   |
-| `brand.id`           | `IDMARCA`          |
-| `category.id`        | `IDCATEGORIA`      |
-| `supercategory.id`   | `IDSUPERCATEGORIA` |
-| `customFields`       | `CUSTOMFIELDS`     |
+| Campo na API (`sku`) | Coluna no Dataset  | Descrição                                                       |
+| :------------------- | :----------------- | :-------------------------------------------------------------- |
+| `id`                 | `IDPROD`           | Identificador único do produto (SKU).                           |
+| `name`               | `NOMEPROD`         | Nome/descrição do produto.                                      |
+| `active`             | `ISACTIVE`         | Status booleano (True/False) indicando se o produto está ativo. |
+| `barCode`            | `EAN`              | Código de barras do produto.                                    |
+| `integrationCode`    | `CODPROD`          | Código de integração do produto, usado em sistemas ERP.         |
+| `productLine.id`     | `IDLINHAPRODUTO`   | Chave estrangeira para a tabela de Linhas de Produto.           |
+| `brand.id`           | `IDMARCA`          | Chave estrangeira para a tabela de Marcas.                      |
+| `category.id`        | `IDCATEGORIA`      | Chave estrangeira para a tabela de Categorias.                  |
+| `supercategory.id`   | `IDSUPERCATEGORIA` | Chave estrangeira para a tabela de Supercategorias.             |
+| `customFields`       | `CUSTOMFIELDS`     | Campos customizados, armazenados como um texto JSON.            |
 
 #### 2. Pontos de Venda (PDVs)
 
-- **Arquivo:** `involves_pdv_YYYY-MM-DD_HHMMSS.xlsx`
+- **Arquivo:** `involves_pdv_...`
 
-| Campo na API (`pointofsale`) | Coluna no Dataset |
-| :--------------------------- | :---------------- |
-| `id`                         | `IDPDV`           |
-| `legalBusinessName`          | `RAZAOSOCIAL`     |
-| `tradeName`                  | `FANTASIA`        |
-| `code`                       | `CODCLI`          |
-| `companyRegistrationNumber`  | `CNPJ`            |
-| `phone`                      | `TELEFONE`        |
-| `active`                     | `ISACTIVE`        |
-| `macroregional.id`           | `IDMACROREGIONAL` |
-| `regional.id`                | `IDREGIONAL`      |
-| `banner.id`                  | `IDBANNER`        |
-| `type.id`                    | `IDTIPO`          |
-| `profile.id`                 | `IDPERFIL`        |
-| `channel.id`                 | `IDCANAL`         |
+| Campo na API (`pointofsale`) | Coluna no Dataset | Descrição                                                   |
+| :--------------------------- | :---------------- | :---------------------------------------------------------- |
+| `id`                         | `IDPDV`           | Identificador único do PDV.                                 |
+| `legalBusinessName`          | `RAZAOSOCIAL`     | Razão Social da empresa.                                    |
+| `tradeName`                  | `FANTASIA`        | Nome Fantasia do PDV.                                       |
+| `code`                       | `CODCLI`          | Código interno do cliente/PDV.                              |
+| `companyRegistrationNumber`  | `CNPJ`            | CNPJ do estabelecimento.                                    |
+| `phone`                      | `TELEFONE`        | Telefone de contato do PDV.                                 |
+| `active`                     | `ISACTIVE`        | Status booleano (True/False) indicando se o PDV está ativo. |
+| `macroregional.id`           | `IDMACROREGIONAL` | Chave estrangeira para a tabela de Macrorregionais.         |
+| `regional.id`                | `IDREGIONAL`      | Chave estrangeira para a tabela de Regionais.               |
+| `banner.id`                  | `IDBANNER`        | Chave estrangeira para a tabela de Banners/Bandeiras.       |
+| `type.id`                    | `IDTIPO`          | Chave estrangeira para a tabela de Tipos de PDV.            |
+| `profile.id`                 | `IDPERFIL`        | Chave estrangeira para a tabela de Perfis de PDV.           |
+| `channel.id`                 | `IDCANAL`         | Chave estrangeira para a tabela de Canais de Venda.         |
+
+#### 3. Colaboradores
+
+- **Arquivo:** `involves_colaboradores_...`
+
+| Campo na API (`employee`)        | Coluna no Dataset | Descrição                                                           |
+| :------------------------------- | :---------------- | :------------------------------------------------------------------ |
+| `id`                             | `IDCOLABORADOR`   | Identificador único do colaborador.                                 |
+| `name`                           | `NOME`            | Nome completo do colaborador.                                       |
+| `login`                          | `LOGIN`           | Login/matrícula do colaborador.                                     |
+| `email`                          | `EMAIL`           | E-mail do colaborador.                                              |
+| `companyPhone`                   | `TELEFONE`        | Telefone de contato corporativo.                                    |
+| `individualTaxpayerRegistration` | `CPF`             | CPF do colaborador.                                                 |
+| `idNumber`                       | `RG`              | RG do colaborador.                                                  |
+| `dateOfBirth`                    | `DATANASCIMENTO`  | Data de nascimento.                                                 |
+| `gender`                         | `SEXO`            | Gênero do colaborador.                                              |
+| `enabled`                        | `ISACTIVE`        | Status booleano (True/False) indicando se o colaborador está ativo. |
+| `supervisor.id`                  | `IDSUPERVISOR`    | Chave estrangeira para o supervisor direto.                         |
+| `accessProfile.id`               | `IDPERFILACESSO`  | Chave estrangeira para o perfil de acesso/grupo de usuário.         |
 
 ### Tabelas de Dimensão
 
 ---
 
-#### 3. Marcas
+#### 4. Marcas
 
 - **Arquivo:** `involves_marcas_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 4. Categorias
+#### 5. Categorias
 
 - **Arquivo:** `involves_categorias_...`
 - **Colunas:** `ID`, `NOME`, `IDSUPERCATEGORIA`
 
-#### 5. Supercategorias
+#### 6. Supercategorias
 
 - **Arquivo:** `involves_supercategorias_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 6. Linhas de Produto
+#### 7. Linhas de Produto
 
 - **Arquivo:** `involves_linhas_de_produto_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 7. Macrorregionais
+#### 8. Macrorregionais
 
 - **Arquivo:** `involves_macroregionais_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 8. Regionais
+#### 9. Regionais
 
 - **Arquivo:** `involves_regionais_...`
 - **Colunas:** `ID`, `NOME`, `IDMACROREGIONAL`
 
-#### 9. Redes (Chains)
+#### 10. Redes (Chains)
 
 - **Arquivo:** `involves_redes_...`
 - **Colunas:** `ID`, `NOME`, `CODIGO`
 
-#### 10. Banners (Bandeiras)
+#### 11. Banners (Bandeiras)
 
 - **Arquivo:** `involves_banners_...`
 - **Colunas:** `ID`, `NOME`, `IDREDE`
 
-#### 11. Tipos de PDV
+#### 12. Tipos de PDV
 
 - **Arquivo:** `involves_tipos_pdv_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 12. Perfis de PDV
+#### 13. Perfis de PDV
 
 - **Arquivo:** `involves_perfis_pdv_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 13. Canais de Venda
+#### 14. Canais de Venda
 
 - **Arquivo:** `involves_canais_...`
 - **Colunas:** `ID`, `NOME`
