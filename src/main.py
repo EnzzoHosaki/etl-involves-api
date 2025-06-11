@@ -10,7 +10,6 @@ from file_handler import save_to_excel
 def run_etl():
     print("--- INICIANDO PROCESSO DE ETL INVOLVES ---")
 
-    # --- Grupo 1: Produtos e suas dimensões ---
     product_dims = process_product_dimensions()
     save_to_excel(product_dims.get("brands"), 'involves_marcas')
     save_to_excel(product_dims.get("supercategories"), 'involves_supercategorias')
@@ -22,7 +21,6 @@ def run_etl():
     categorias_data = process_categories_from_skus(produtos_data)
     save_to_excel(categorias_data, 'involves_categorias')
 
-    # --- Grupo 2: PDVs e suas dimensões ---
     pdv_datasets = process_all_pdv_related_data()
     save_to_excel(pdv_datasets.get("pdvs"), 'involves_pdv')
     save_to_excel(pdv_datasets.get("macroregionals"), 'involves_macroregionais')
@@ -33,7 +31,6 @@ def run_etl():
     save_to_excel(pdv_datasets.get("pos_profiles"), 'involves_perfis_pdv')
     save_to_excel(pdv_datasets.get("channels"), 'involves_canais')
 
-    # --- Grupo 3: Colaboradores ---
     colaboradores_data = process_employees()
     save_to_excel(colaboradores_data, 'involves_colaboradores')
 

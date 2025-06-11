@@ -1,13 +1,10 @@
-# data_processor.py
 import time
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import INVOLVES_BASE_URL, INVOLVES_ENVIRONMENT_ID
 from api_client import get_api_data
 
-# --- Módulo de Extração Genérica ---
 def _fetch_paginated_data(base_url: str) -> list:
-    """Busca todos os dados de um endpoint paginado, a partir de uma URL base."""
     all_items = []
     page_num = 1
     endpoint_name = base_url.split('/')[-1] if '?' not in base_url else base_url.split('/')[-1].split('?')[0]
@@ -41,7 +38,6 @@ def _fetch_paginated_data(base_url: str) -> list:
 
 
 def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
-    """Busca detalhes para um conjunto de IDs em paralelo usando uma URL template."""
     if not ids: return []
     
     processed_details = []
@@ -65,10 +61,7 @@ def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
     print()
     return processed_details
 
-# --- Módulos de Processamento Específico ---
-
 def process_product_dimensions():
-    """Extrai e processa todas as dimensões relacionadas a produtos."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PRODUTO ---")
     
     brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/brands") if isinstance(b, dict)]
@@ -82,7 +75,6 @@ def process_product_dimensions():
     }
 
 def process_skus() -> list:
-    """Busca e formata os dados de produtos (SKUs)."""
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/skus")
     print("\n--- Processando dataset de Produtos para o formato final ---")
     processed_data = []
@@ -104,7 +96,6 @@ def process_skus() -> list:
     return processed_data
 
 def process_categories_from_skus(all_skus: list) -> list:
-    """Coleta IDs de categoria da lista de SKUs e busca seus detalhes."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÃO DE CATEGORIAS (VIA SKUS) ---")
     if not all_skus:
         print("Nenhum SKU encontrado para extrair categorias.")
@@ -120,7 +111,6 @@ def process_categories_from_skus(all_skus: list) -> list:
 
 
 def process_all_pdv_related_data():
-    """Orquestra a extração de PDVs e de todas as suas dimensões relacionadas."""
     print("\n--- INICIANDO EXTRAÇÃO DE PDVS E DIMENSÕES RELACIONADAS ---")
     
     pdv_summaries = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
@@ -188,7 +178,6 @@ def process_all_pdv_related_data():
     }
 
 def process_employees() -> list:
-    """Busca e formata os dados de Colaboradores."""
     employee_summaries = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/employeeenvironment")
     
     print("\n--- Processando detalhes de cada Colaborador (utilizando threads) ---")
