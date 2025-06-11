@@ -1,14 +1,10 @@
-# data_processor.py
 import time
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import INVOLVES_BASE_URL, INVOLVES_ENVIRONMENT_ID
 from api_client import get_api_data
 
-# --- Módulo de Extração Genérica ---
-
 def _fetch_paginated_summaries(endpoint_name: str) -> list:
-    """Busca os resumos de todos os itens de um endpoint paginado."""
     all_items = []
     page_num = 1
     base_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/{endpoint_name}"
@@ -31,7 +27,6 @@ def _fetch_paginated_summaries(endpoint_name: str) -> list:
     return all_items
 
 def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
-    """Busca detalhes para um conjunto de IDs em paralelo usando uma URL template."""
     if not ids: return []
     
     processed_details = []
@@ -55,10 +50,7 @@ def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
     print()
     return processed_details
 
-# --- Módulos de Processamento Específico ---
-
 def process_product_dimensions():
-    """Extrai e processa todas as dimensões de produto que possuem listas públicas."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PRODUTO ---")
     
     brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_paginated_summaries('brands') if isinstance(b, dict)]
@@ -72,7 +64,6 @@ def process_product_dimensions():
     }
 
 def process_skus() -> list:
-    """Busca e formata os dados de produtos (SKUs)."""
     raw_data = _fetch_paginated_summaries('skus')
     print("\n--- Processando dataset de Produtos para o formato final ---")
     processed_data = []
@@ -94,16 +85,13 @@ def process_skus() -> list:
     return processed_data
 
 def process_categories_from_skus(all_skus: list) -> list:
-    """
-    Coleta IDs de categoria da lista de SKUs e busca seus detalhes.
-    """
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÃO DE CATEGORIAS (VIA SKUS) ---")
     if not all_skus:
         print("Nenhum SKU encontrado para extrair categorias.")
         return []
 
     category_ids = {sku.get('IDCATEGORIA') for sku in all_skus if sku.get('IDCATEGORIA')}
-    category_ids.discard(None) # Remove qualquer valor nulo que possa ter sido adicionado
+    category_ids.discard(None) 
 
     url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/categories/{{id}}"
     category_details = _fetch_details_in_parallel(url_template, category_ids)
@@ -112,38 +100,33 @@ def process_categories_from_skus(all_skus: list) -> list:
 
 
 def process_all_pdv_related_data():
-    """
-    Orquestra a extração de PDVs e de todas as suas dimensões relacionadas
-    de forma otimizada, buscando apenas os IDs necessários.
-    """
     print("\n--- INICIANDO EXTRAÇÃO DE PDVS E DIMENSÕES RELACIONADAS ---")
     
-    # 1. Busca os detalhes completos de todos os PDVs em paralelo
     pdv_summaries = _fetch_paginated_summaries('pointofsales')
     print("\n--- Processando detalhes de cada Ponto de Venda (utilizando threads) ---")
     url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales/{{id}}"
     pdv_ids = {pdv['id'] for pdv in pdv_summaries if pdv.get('id')}
     pdv_details = _fetch_details_in_parallel(url_template, pdv_ids)
 
-    # 2. Coleta todos os IDs únicos das dimensões a partir dos detalhes dos PDVs
     dimension_ids = {
         'macroregional': set(), 'regional': set(), 'banner': set(),
         'type': set(), 'profile': set(), 'channel': set(), 'chain': set()
     }
     
+    print("\n--- Coletando IDs de dimensão a partir dos PDVs ---")
     for pdv in pdv_details:
         if not isinstance(pdv, dict): continue
-        dimension_ids['macroregional'] |= {pdv.get('macroregional', {}).get('id')}
-        dimension_ids['regional'] |= {pdv.get('regional', {}).get('id')}
-        dimension_ids['banner'] |= {pdv.get('banner', {}).get('id')}
-        dimension_ids['type'] |= {pdv.get('type', {}).get('id')}
-        dimension_ids['profile'] |= {pdv.get('profile', {}).get('id')}
-        dimension_ids['channel'] |= {pdv.get('channel', {}).get('id')}
+        
+        if pdv.get('macroregional'): dimension_ids['macroregional'].add(pdv.get('macroregional').get('id'))
+        if pdv.get('regional'): dimension_ids['regional'].add(pdv.get('regional').get('id'))
+        if pdv.get('banner'): dimension_ids['banner'].add(pdv.get('banner').get('id'))
+        if pdv.get('type'): dimension_ids['type'].add(pdv.get('type').get('id'))
+        if pdv.get('profile'): dimension_ids['profile'].add(pdv.get('profile').get('id'))
+        if pdv.get('channel'): dimension_ids['channel'].add(pdv.get('channel').get('id'))
     
     for key in dimension_ids:
         dimension_ids[key].discard(None)
 
-    # 3. Busca os detalhes apenas para os IDs únicos coletados
     print("\n--- Buscando detalhes das dimensões de PDV ---")
     macroregionals = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals/{{id}}", dimension_ids['macroregional'])
     regionals = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/regionals/{{id}}", dimension_ids['regional'])
@@ -158,7 +141,6 @@ def process_all_pdv_related_data():
     pos_profiles = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/pointofsaleprofile/{{id}}", dimension_ids['profile'])
     channels = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels/{{id}}", dimension_ids['channel'])
 
-    # 4. Formata todos os datasets para o formato final
     to_str = lambda v: str(v) if v is not None else None
     
     processed_pdvs = [{
@@ -166,12 +148,12 @@ def process_all_pdv_related_data():
         'FANTASIA': pdv.get('tradeName'), 'CODCLI': to_str(pdv.get('code')),
         'CNPJ': pdv.get('companyRegistrationNumber'), 'TELEFONE': pdv.get('phone'),
         'ISACTIVE': pdv.get('active'),
-        'IDMACROREGIONAL': to_str(pdv.get('macroregional', {}).get('id')),
-        'IDREGIONAL': to_str(pdv.get('regional', {}).get('id')),
-        'IDBANNER': to_str(pdv.get('banner', {}).get('id')),
-        'IDTIPO': to_str(pdv.get('type', {}).get('id')),
-        'IDPERFIL': to_str(pdv.get('profile', {}).get('id')),
-        'IDCANAL': to_str(pdv.get('channel', {}).get('id'))
+        'IDMACROREGIONAL': to_str(pdv['macroregional'].get('id')) if pdv.get('macroregional') else None,
+        'IDREGIONAL': to_str(pdv['regional'].get('id')) if pdv.get('regional') else None,
+        'IDBANNER': to_str(pdv['banner'].get('id')) if pdv.get('banner') else None,
+        'IDTIPO': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
+        'IDPERFIL': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
+        'IDCANAL': to_str(pdv['channel'].get('id')) if pdv.get('channel') else None
     } for pdv in pdv_details]
 
     return {
