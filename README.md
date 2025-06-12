@@ -58,7 +58,7 @@ Siga os passos abaixo para configurar e executar o projeto.
 Com o ambiente virtual ativado e o `.env` configurado, execute o orquestrador principal:
 
 ```bash
-python main.py
+python src/main.py
 ```
 
 O script irá processar cada entidade e salvar os arquivos resultantes na pasta `dataset/`, que será criada automaticamente na raiz do projeto.
@@ -110,76 +110,115 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 - **Arquivo:** `involves_colaboradores_...`
 
-| Campo na API (`employee`)        | Coluna no Dataset | Descrição                                                           |
-| :------------------------------- | :---------------- | :------------------------------------------------------------------ |
-| `id`                             | `IDCOLABORADOR`   | Identificador único do colaborador.                                 |
-| `name`                           | `NOME`            | Nome completo do colaborador.                                       |
-| `login`                          | `LOGIN`           | Login/matrícula do colaborador.                                     |
-| `email`                          | `EMAIL`           | E-mail do colaborador.                                              |
-| `companyPhone`                   | `TELEFONE`        | Telefone de contato corporativo.                                    |
-| `individualTaxpayerRegistration` | `CPF`             | CPF do colaborador.                                                 |
-| `idNumber`                       | `RG`              | RG do colaborador.                                                  |
-| `dateOfBirth`                    | `DATANASCIMENTO`  | Data de nascimento.                                                 |
-| `gender`                         | `SEXO`            | Gênero do colaborador.                                              |
-| `enabled`                        | `ISACTIVE`        | Status booleano (True/False) indicando se o colaborador está ativo. |
-| `supervisor.id`                  | `IDSUPERVISOR`    | Chave estrangeira para o supervisor direto.                         |
-| `accessProfile.id`               | `IDPERFILACESSO`  | Chave estrangeira para o perfil de acesso/grupo de usuário.         |
+| Campo na API (`employeeenvironment`) | Coluna no Dataset | Descrição                                                           |
+| :----------------------------------- | :---------------- | :------------------------------------------------------------------ |
+| `id`                                 | `IDCOLABORADOR`   | Identificador único do colaborador.                                 |
+| `name`                               | `NOME`            | Nome completo do colaborador.                                       |
+| `role`                               | `CARGO`           | Cargo do colaborador.                                               |
+| `login`                              | `LOGIN`           | Login/matrícula do colaborador.                                     |
+| `email`                              | `EMAIL`           | E-mail do colaborador.                                              |
+| `workPhone`                          | `TELEFONE`        | Telefone de contato corporativo.                                    |
+| `nationalIdCard1`                    | `RG`              | RG do colaborador.                                                  |
+| `nationalIdCard2`                    | `CPF`             | CPF do colaborador.                                                 |
+| `fatherName`                         | `NOMEPAI`         | Nome do pai.                                                        |
+| `motherName`                         | `NOMEMAE`         | Nome da mãe.                                                        |
+| `enabled`                            | `ISACTIVE`        | Status booleano (True/False) indicando se o colaborador está ativo. |
+| `userGroup.id`                       | `IDGRUPO`         | ID do grupo de usuário.                                             |
+| `userGroup.name`                     | `GRUPO`           | Nome do grupo de usuário.                                           |
+| `profile.id`                         | `IDPERFIL`        | ID do perfil de acesso.                                             |
+| `profile.name`                       | `PERFIL`          | Nome do perfil de acesso.                                           |
+| `employeeEnvironmentLeader.id`       | `IDSUPERVISOR`    | Chave estrangeira para o supervisor direto.                         |
+| `address.address`                    | `ENDERECO`        | Logradouro do endereço.                                             |
+| `address.number`                     | `NUMERO`          | Número do endereço.                                                 |
+| `address.complement`                 | `COMPLEMENTO`     | Complemento do endereço.                                            |
+| `address.neighborhood`               | `BAIRRO`          | Bairro do endereço.                                                 |
+| `address.zipCode`                    | `CEP`             | CEP do endereço.                                                    |
+| `address.city.name`                  | `CIDADE`          | Cidade do endereço.                                                 |
+| `address.state.name`                 | `ESTADO`          | Estado do endereço.                                                 |
+
+#### 4. Afastamentos de Colaboradores
+
+- **Arquivo:** `involves_afastamentos_...`
+
+| Campo na API (`leave`) | Coluna no Dataset | Descrição                                            |
+| :--------------------- | :---------------- | :--------------------------------------------------- |
+| `id`                   | `IDAFFASTAIMENTO` | Identificador único do afastamento.                  |
+| `startDate`            | `DATAINICIO`      | Data de início do afastamento.                       |
+| `endDate`              | `DATAFIM`         | Data de fim do afastamento.                          |
+| `reason`               | `MOTIVO`          | Descrição do motivo.                                 |
+| `note`                 | `OBSERVACAO`      | Observações adicionais.                              |
+| `employee.id`          | `IDCOLABORADOR`   | Chave estrangeira para o colaborador afastado.       |
+| `registeredBy.id`      | `IDREGISTRADOPOR` | Chave estrangeira para quem registrou o afastamento. |
+| `substitute.id`        | `IDSUBSTITUTO`    | Chave estrangeira para o colaborador substituto.     |
+
+#### 5. Visitas Agendadas
+
+- **Arquivo:** `involves_visitas_agendadas_...`
+
+| Campo na API (`scheduledvisit`) | Coluna no Dataset | Descrição                                                   |
+| :------------------------------ | :---------------- | :---------------------------------------------------------- |
+| (não tem id)                    | `IDCOLABORADOR`   | Chave estrangeira para o colaborador da visita.             |
+| `pointOfSale.id`                | `IDPDV`           | Chave estrangeira para o PDV a ser visitado.                |
+| `visitDate`                     | `DATAVISITA`      | Data da visita agendada.                                    |
+| `expectedStart`                 | `INICIOESPERADO`  | Horário de início esperado da visita.                       |
+| `expectedEnd`                   | `FIMESPERADO`     | Horário de término esperado da visita.                      |
+| `visited`                       | `FOIVISITADO`     | Status booleano (True/False) indicando se a visita ocorreu. |
 
 ### Tabelas de Dimensão
 
 ---
 
-#### 4. Marcas
+#### 6. Marcas
 
 - **Arquivo:** `involves_marcas_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 5. Categorias
+#### 7. Categorias
 
 - **Arquivo:** `involves_categorias_...`
 - **Colunas:** `ID`, `NOME`, `IDSUPERCATEGORIA`
 
-#### 6. Supercategorias
+#### 8. Supercategorias
 
 - **Arquivo:** `involves_supercategorias_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 7. Linhas de Produto
+#### 9. Linhas de Produto
 
 - **Arquivo:** `involves_linhas_de_produto_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 8. Macrorregionais
+#### 10. Macrorregionais
 
 - **Arquivo:** `involves_macroregionais_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 9. Regionais
+#### 11. Regionais
 
 - **Arquivo:** `involves_regionais_...`
 - **Colunas:** `ID`, `NOME`, `IDMACROREGIONAL`
 
-#### 10. Redes (Chains)
+#### 12. Redes (Chains)
 
 - **Arquivo:** `involves_redes_...`
 - **Colunas:** `ID`, `NOME`, `CODIGO`
 
-#### 11. Banners (Bandeiras)
+#### 13. Banners (Bandeiras)
 
 - **Arquivo:** `involves_banners_...`
 - **Colunas:** `ID`, `NOME`, `IDREDE`
 
-#### 12. Tipos de PDV
+#### 14. Tipos de PDV
 
 - **Arquivo:** `involves_tipos_pdv_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 13. Perfis de PDV
+#### 15. Perfis de PDV
 
 - **Arquivo:** `involves_perfis_pdv_...`
 - **Colunas:** `ID`, `NOME`
 
-#### 14. Canais de Venda
+#### 16. Canais de Venda
 
 - **Arquivo:** `involves_canais_...`
 - **Colunas:** `ID`, `NOME`
