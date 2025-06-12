@@ -1,16 +1,11 @@
-# api_client.py
 import requests
 import time
 import json
 from config import HEADERS
 
-# Cache em memória para evitar chamadas repetidas para a mesma URL
 _cache = {}
 
 def get_api_data(url: str):
-    """
-    Realiza uma requisição GET para a API da Involves, com cache e retentativas.
-    """
     if url in _cache:
         return _cache[url]
 
@@ -29,7 +24,6 @@ def get_api_data(url: str):
             return data
         except requests.exceptions.RequestException as e:
             if e.response is not None and e.response.status_code == 404:
-                # Silencia o erro 404 para endpoints que podem não existir.
                 pass
             else:
                 print(f"\n[Tentativa {attempt + 1}/{max_retries}] Erro na requisição para a URL {url}: {e}")
