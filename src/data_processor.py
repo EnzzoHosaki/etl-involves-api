@@ -1,10 +1,13 @@
+# data_processor.py
 import time
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import INVOLVES_BASE_URL, INVOLVES_ENVIRONMENT_ID
 from api_client import get_api_data
 
+# --- Módulo de Extração Genérica ---
 def _fetch_paginated_data(base_url: str) -> list:
+    """Busca todos os dados de um endpoint paginado, a partir de uma URL base."""
     all_items = []
     page_num = 1
     endpoint_name = base_url.split('/')[-1] if '?' not in base_url else base_url.split('/')[-1].split('?')[0]
@@ -38,6 +41,7 @@ def _fetch_paginated_data(base_url: str) -> list:
 
 
 def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
+    """Busca detalhes para um conjunto de IDs em paralelo usando uma URL template."""
     if not ids: return []
     
     processed_details = []
@@ -61,7 +65,10 @@ def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
     print()
     return processed_details
 
+# --- Módulos de Processamento Específico ---
+
 def process_product_dimensions():
+    """Extrai e processa todas as dimensões relacionadas a produtos."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PRODUTO ---")
     
     brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/brands") if isinstance(b, dict)]
@@ -75,6 +82,7 @@ def process_product_dimensions():
     }
 
 def process_skus() -> list:
+    """Busca e formata os dados de produtos (SKUs)."""
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/skus")
     print("\n--- Processando dataset de Produtos para o formato final ---")
     processed_data = []
@@ -96,6 +104,7 @@ def process_skus() -> list:
     return processed_data
 
 def process_categories_from_skus(all_skus: list) -> list:
+    """Coleta IDs de categoria da lista de SKUs e busca seus detalhes."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÃO DE CATEGORIAS (VIA SKUS) ---")
     if not all_skus:
         print("Nenhum SKU encontrado para extrair categorias.")
@@ -110,6 +119,7 @@ def process_categories_from_skus(all_skus: list) -> list:
     return [{'ID': c.get('id'), 'NOME': c.get('name'), 'IDSUPERCATEGORIA': c.get('supercategory', {}).get('id')} for c in category_details if isinstance(c, dict)]
 
 def process_point_of_sales() -> list:
+    """Busca e formata os dados da lista paginada de PDVs."""
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
     print("\n--- Processando dataset de Pontos de Venda para o formato final ---")
     processed_data = []
@@ -134,6 +144,7 @@ def process_point_of_sales() -> list:
     return processed_data
 
 def process_pdv_dimensions():
+    """Extrai e processa todas as dimensões relacionadas a PDVs."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PDV ---")
     
     macroregionals = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals")]
@@ -163,6 +174,7 @@ def process_pdv_dimensions():
     }
 
 def process_employees() -> list:
+    """Busca e formata os dados de Colaboradores a partir do endpoint de lista (v1)."""
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/employeeenvironment")
     
     print("\n--- Formatando dataset de Colaboradores ---")
@@ -171,7 +183,9 @@ def process_employees() -> list:
     
     for emp in raw_data:
         if not isinstance(emp, dict): continue
+        
         address = emp.get('address', {})
+        
         row = {
             'IDCOLABORADOR': to_str(emp.get('id')),
             'NOME': emp.get('name'),
@@ -189,6 +203,7 @@ def process_employees() -> list:
             'IDPERFIL': to_str(emp.get('profile', {}).get('id')),
             'PERFIL': emp.get('profile', {}).get('name'),
             'IDSUPERVISOR': to_str(emp['employeeEnvironmentLeader'].get('id')) if emp.get('employeeEnvironmentLeader') else None,
+            'SUPERVISOR': emp.get('employeeEnvironmentLeader', {}).get('name'),
             'ENDERECO': address.get('address'),
             'NUMERO': to_str(address.get('number')),
             'COMPLEMENTO': address.get('complement'),
@@ -199,10 +214,13 @@ def process_employees() -> list:
         }
         processed_data.append(row)
 
-    if processed_data: processed_data.sort(key=lambda x: int(x['IDCOLABORADOR']))
+    if processed_data: 
+        processed_data.sort(key=lambda x: int(x['IDCOLABORADOR']) if x.get('IDCOLABORADOR') else 0)
+
     return processed_data
 
 def process_leaves() -> list:
+    """Busca e formata os dados de Afastamentos de Colaboradores."""
     base_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/leaves"
     raw_data = _fetch_paginated_data(base_url)
     
@@ -226,6 +244,7 @@ def process_leaves() -> list:
     return processed_data
 
 def process_scheduled_visits(all_employees: list) -> list:
+    """Para cada colaborador, busca suas visitas agendadas para um período definido."""
     print("\n--- INICIANDO EXTRAÇÃO DE VISITAS AGENDADAS (POR COLABORADOR) ---")
     if not all_employees:
         print("Nenhum colaborador encontrado para buscar visitas.")

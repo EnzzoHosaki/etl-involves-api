@@ -97,7 +97,6 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 | `tradeName`                  | `FANTASIA`        | Nome Fantasia do PDV.                                       |
 | `code`                       | `CODCLI`          | Código interno do cliente/PDV.                              |
 | `companyRegistrationNumber`  | `CNPJ`            | CNPJ do estabelecimento.                                    |
-| `phone`                      | `TELEFONE`        | Telefone de contato do PDV.                                 |
 | `active`                     | `ISACTIVE`        | Status booleano (True/False) indicando se o PDV está ativo. |
 | `macroregional.id`           | `IDMACROREGIONAL` | Chave estrangeira para a tabela de Macrorregionais.         |
 | `regional.id`                | `IDREGIONAL`      | Chave estrangeira para a tabela de Regionais.               |
@@ -128,6 +127,7 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 | `profile.id`                         | `IDPERFIL`        | ID do perfil de acesso.                                             |
 | `profile.name`                       | `PERFIL`          | Nome do perfil de acesso.                                           |
 | `employeeEnvironmentLeader.id`       | `IDSUPERVISOR`    | Chave estrangeira para o supervisor direto.                         |
+| `employeeEnvironmentLeader.name`     | `SUPERVISOR`      | Nome do supervisor direto.                                          |
 | `address.address`                    | `ENDERECO`        | Logradouro do endereço.                                             |
 | `address.number`                     | `NUMERO`          | Número do endereço.                                                 |
 | `address.complement`                 | `COMPLEMENTO`     | Complemento do endereço.                                            |
