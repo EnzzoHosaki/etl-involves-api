@@ -1,18 +1,14 @@
-# config.py
 import os
 import base64
 from dotenv import load_dotenv
 
-# --- Carrega as variáveis de ambiente do arquivo .env ---
 load_dotenv()
 
-# --- Credenciais e Configurações da API ---
 INVOLVES_USERNAME = os.getenv("INVOLVES_USERNAME")
 INVOLVES_PASSWORD = os.getenv("INVOLVES_PASSWORD")
 INVOLVES_BASE_URL = os.getenv("INVOLVES_BASE_URL")
 INVOLVES_ENVIRONMENT_ID = os.getenv("INVOLVES_ENVIRONMENT_ID")
 
-# --- Cabeçalhos de Autenticação ---
 _auth_string = f"{INVOLVES_USERNAME}:{INVOLVES_PASSWORD}"
 _base64_auth_string = base64.b64encode(_auth_string.encode("utf-8")).decode("utf-8")
 

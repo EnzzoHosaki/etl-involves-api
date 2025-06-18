@@ -1,13 +1,8 @@
-# file_handler.py
 import pandas as pd
 from datetime import datetime
 import os
 
 def save_to_excel(data: list, filename_prefix: str):
-    """
-    Salva uma lista de dicionários em um arquivo Excel com timestamp,
-    dentro de uma pasta 'dataset'.
-    """
     if not data:
         print(f"Nenhum dado de '{filename_prefix}' para salvar.")
         return

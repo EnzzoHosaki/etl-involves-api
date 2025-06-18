@@ -1,13 +1,10 @@
-# data_processor.py
 import time
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import INVOLVES_BASE_URL, INVOLVES_ENVIRONMENT_ID
 from api_client import get_api_data
 
-# --- Módulo de Extração Genérica ---
 def _fetch_paginated_data(base_url: str) -> list:
-    """Busca todos os dados de um endpoint paginado, a partir de uma URL base."""
     all_items = []
     page_num = 1
     endpoint_name = base_url.split('/')[-1] if '?' not in base_url else base_url.split('/')[-1].split('?')[0]
@@ -41,7 +38,6 @@ def _fetch_paginated_data(base_url: str) -> list:
 
 
 def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
-    """Busca detalhes para um conjunto de IDs em paralelo usando uma URL template."""
     if not ids: return []
     
     processed_details = []
@@ -65,10 +61,7 @@ def _fetch_details_in_parallel(url_template: str, ids: set) -> list:
     print()
     return processed_details
 
-# --- Módulos de Processamento Específico ---
-
 def process_product_dimensions():
-    """Extrai e processa todas as dimensões relacionadas a produtos."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PRODUTO ---")
     
     brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/brands") if isinstance(b, dict)]
@@ -82,7 +75,6 @@ def process_product_dimensions():
     }
 
 def process_skus() -> list:
-    """Busca e formata os dados de produtos (SKUs)."""
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/skus")
     print("\n--- Processando dataset de Produtos para o formato final ---")
     processed_data = []
@@ -104,7 +96,6 @@ def process_skus() -> list:
     return processed_data
 
 def process_categories_from_skus(all_skus: list) -> list:
-    """Coleta IDs de categoria da lista de SKUs e busca seus detalhes."""
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÃO DE CATEGORIAS (VIA SKUS) ---")
     if not all_skus:
         print("Nenhum SKU encontrado para extrair categorias.")
@@ -118,63 +109,74 @@ def process_categories_from_skus(all_skus: list) -> list:
 
     return [{'ID': c.get('id'), 'NOME': c.get('name'), 'IDSUPERCATEGORIA': c.get('supercategory', {}).get('id')} for c in category_details if isinstance(c, dict)]
 
-def process_point_of_sales() -> list:
-    """Busca e formata os dados da lista paginada de PDVs."""
-    raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
-    print("\n--- Processando dataset de Pontos de Venda para o formato final ---")
-    processed_data = []
-    to_str = lambda v: str(v) if v is not None else None
-    for pdv in raw_data:
+def process_all_pdv_related_data():
+    print("\n--- INICIANDO EXTRAÇÃO DE PDVS E DIMENSÕES RELACIONADAS ---")
+    
+    pdv_summaries = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
+    print("\n--- Processando detalhes de cada Ponto de Venda (utilizando threads) ---")
+    url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales/{{id}}"
+    pdv_ids = {pdv['id'] for pdv in pdv_summaries if pdv.get('id')}
+    pdv_details = _fetch_details_in_parallel(url_template, pdv_ids)
+
+    dimension_ids = {
+        'macroregional': set(), 'regional': set(), 'banner': set(),
+        'type': set(), 'profile': set(), 'channel': set(), 'chain': set()
+    }
+    
+    print("\n--- Coletando IDs de dimensão a partir dos PDVs ---")
+    for pdv in pdv_details:
         if not isinstance(pdv, dict): continue
-        row = {
-            'IDPDV': to_str(pdv.get('id')),
-            'RAZAOSOCIAL': pdv.get('legalBusinessName'),
-            'FANTASIA': pdv.get('tradeName'),
-            'CODCLI': to_str(pdv.get('code')),
-            'CNPJ': pdv.get('companyRegistrationNumber'),
-            'ISACTIVE': pdv.get('active'),
-            'IDMACROREGIONAL': to_str(pdv['macroregional'].get('id')) if pdv.get('macroregional') else None,
-            'IDREGIONAL': to_str(pdv['regional'].get('id')) if pdv.get('regional') else None,
-            'IDBANNER': to_str(pdv['banner'].get('id')) if pdv.get('banner') else None,
-            'IDTIPO': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
-            'IDPERFIL': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
-            'IDCANAL': to_str(pdv['channel'].get('id')) if pdv.get('channel') else None
-        }
-        processed_data.append(row)
-    return processed_data
-
-def process_pdv_dimensions():
-    """Extrai e processa todas as dimensões relacionadas a PDVs."""
-    print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PDV ---")
+        if pdv.get('macroregional'): dimension_ids['macroregional'].add(pdv.get('macroregional').get('id'))
+        if pdv.get('regional'): dimension_ids['regional'].add(pdv.get('regional').get('id'))
+        if pdv.get('banner'): dimension_ids['banner'].add(pdv.get('banner').get('id'))
+        if pdv.get('type'): dimension_ids['type'].add(pdv.get('type').get('id'))
+        if pdv.get('profile'): dimension_ids['profile'].add(pdv.get('profile').get('id'))
+        if pdv.get('channel'): dimension_ids['channel'].add(pdv.get('channel').get('id'))
     
-    macroregionals = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals")]
-    regionals = [{'ID': i.get('id'), 'NOME': i.get('name'), 'IDMACROREGIONAL': i.get('macroregional', {}).get('id')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/regionals")]
-    banners = [{'ID': i.get('id'), 'NOME': i.get('name'), 'IDREDE': i.get('chain', {}).get('id')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/banners")]
-    chains = [{'ID': i.get('id'), 'NOME': i.get('name'), 'CODIGO': i.get('code')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/chains")]
-    channels = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels")]
-    
-    pos_types_raw = get_api_data(f"{INVOLVES_BASE_URL}/v1/pointofsaletype/find")
-    pos_types = []
-    if isinstance(pos_types_raw, list):
-        pos_types = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in pos_types_raw if isinstance(i, dict)]
+    for key in dimension_ids:
+        dimension_ids[key].discard(None)
 
-    pos_profiles_raw = get_api_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/pointofsaleprofile/find")
-    pos_profiles = []
-    if isinstance(pos_profiles_raw, list):
-        pos_profiles = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in pos_profiles_raw if isinstance(i, dict)]
+    print("\n--- Buscando detalhes das dimensões de PDV ---")
+    macroregionals = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals/{{id}}", dimension_ids['macroregional'])
+    regionals = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/regionals/{{id}}", dimension_ids['regional'])
+    banners = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/banners/{{id}}", dimension_ids['banner'])
+    
+    dimension_ids['chain'] |= {b.get('chain', {}).get('id') for b in banners if isinstance(b, dict)}
+    dimension_ids['chain'].discard(None)
+    
+    chains = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/chains/{{id}}", dimension_ids['chain'])
+    
+    pos_types = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v1/pointofsaletype/{{id}}", dimension_ids['type'])
+    pos_profiles = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/pointofsaleprofile/{{id}}", dimension_ids['profile'])
+    channels = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels/{{id}}", dimension_ids['channel'])
+
+    to_str = lambda v: str(v) if v is not None else None
+    
+    processed_pdvs = [{
+        'IDPDV': to_str(pdv.get('id')), 'RAZAOSOCIAL': pdv.get('legalBusinessName'),
+        'FANTASIA': pdv.get('tradeName'), 'CODCLI': to_str(pdv.get('code')),
+        'CNPJ': pdv.get('companyRegistrationNumber'), 'TELEFONE': pdv.get('phone'),
+        'ISACTIVE': pdv.get('active'),
+        'IDMACROREGIONAL': to_str(pdv['macroregional'].get('id')) if pdv.get('macroregional') else None,
+        'IDREGIONAL': to_str(pdv['regional'].get('id')) if pdv.get('regional') else None,
+        'IDBANNER': to_str(pdv['banner'].get('id')) if pdv.get('banner') else None,
+        'IDTIPO': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
+        'IDPERFIL': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
+        'IDCANAL': to_str(pdv['channel'].get('id')) if pdv.get('channel') else None
+    } for pdv in pdv_details]
 
     return {
-        "macroregionals": macroregionals,
-        "regionals": regionals,
-        "banners": banners,
-        "chains": chains,
-        "pos_types": pos_types,
-        "pos_profiles": pos_profiles,
-        "channels": channels,
+        "pdvs": processed_pdvs,
+        "macroregionals": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in macroregionals],
+        "regionals": [{'ID': item.get('id'), 'NOME': item.get('name'), 'IDMACROREGIONAL': item.get('macroregional', {}).get('id')} for item in regionals],
+        "banners": [{'ID': item.get('id'), 'NOME': item.get('name'), 'IDREDE': item.get('chain', {}).get('id')} for item in banners],
+        "chains": [{'ID': item.get('id'), 'NOME': item.get('name'), 'CODIGO': item.get('code')} for item in chains],
+        "pos_types": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in pos_types],
+        "pos_profiles": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in pos_profiles],
+        "channels": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in channels],
     }
 
 def process_employees() -> list:
-    """Busca e formata os dados de Colaboradores a partir do endpoint de lista (v1)."""
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/employeeenvironment")
     
     print("\n--- Formatando dataset de Colaboradores ---")
@@ -202,8 +204,7 @@ def process_employees() -> list:
             'GRUPO': emp.get('userGroup', {}).get('name'),
             'IDPERFIL': to_str(emp.get('profile', {}).get('id')),
             'PERFIL': emp.get('profile', {}).get('name'),
-            'IDSUPERVISOR': to_str(emp['employeeEnvironmentLeader'].get('id')) if emp.get('employeeEnvironmentLeader') else None,
-            'SUPERVISOR': emp.get('employeeEnvironmentLeader', {}).get('name'),
+            'IDSUPERVISOR': to_str(emp.get('employeeEnvironmentLeader', {}).get('id')),
             'ENDERECO': address.get('address'),
             'NUMERO': to_str(address.get('number')),
             'COMPLEMENTO': address.get('complement'),
@@ -219,8 +220,27 @@ def process_employees() -> list:
 
     return processed_data
 
+def process_supervisors(all_employees: list) -> list:
+    print("\n--- Criando dataset de Supervisores ---")
+    if not all_employees:
+        return []
+    
+    supervisors_map = {}
+    for emp in all_employees:
+        leader = emp.get('employeeEnvironmentLeader')
+        if isinstance(leader, dict):
+            leader_id = leader.get('id')
+            leader_name = leader.get('name')
+            if leader_id and leader_name:
+                supervisors_map[leader_id] = leader_name
+    
+    processed_data = [{'ID': id, 'NOME': name} for id, name in supervisors_map.items()]
+    if processed_data:
+        processed_data.sort(key=lambda x: x['ID'])
+        
+    return processed_data
+
 def process_leaves() -> list:
-    """Busca e formata os dados de Afastamentos de Colaboradores."""
     base_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/leaves"
     raw_data = _fetch_paginated_data(base_url)
     
@@ -244,7 +264,6 @@ def process_leaves() -> list:
     return processed_data
 
 def process_scheduled_visits(all_employees: list) -> list:
-    """Para cada colaborador, busca suas visitas agendadas para um período definido."""
     print("\n--- INICIANDO EXTRAÇÃO DE VISITAS AGENDADAS (POR COLABORADOR) ---")
     if not all_employees:
         print("Nenhum colaborador encontrado para buscar visitas.")
