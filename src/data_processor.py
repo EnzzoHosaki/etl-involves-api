@@ -107,73 +107,59 @@ def process_categories_from_skus(all_skus: list) -> list:
     url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/categories/{{id}}"
     category_details = _fetch_details_in_parallel(url_template, category_ids)
 
-    return [{'ID': c.get('id'), 'NOME': c.get('name'), 'IDSUPERCATEGORIA': c.get('supercategory', {}).get('id')} for c in category_details if isinstance(c, dict)]
+    return [{'ID': c.get('id'), 'NOME': c.get('name'), 'IDSUPERCATEGORIA': c.get('supercategory', {}).get('id')} for c in category_details if c]
 
-def process_all_pdv_related_data():
-    print("\n--- INICIANDO EXTRAÇÃO DE PDVS E DIMENSÕES RELACIONADAS ---")
-    
-    pdv_summaries = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
-    print("\n--- Processando detalhes de cada Ponto de Venda (utilizando threads) ---")
-    url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales/{{id}}"
-    pdv_ids = {pdv['id'] for pdv in pdv_summaries if pdv.get('id')}
-    pdv_details = _fetch_details_in_parallel(url_template, pdv_ids)
-
-    dimension_ids = {
-        'macroregional': set(), 'regional': set(), 'banner': set(),
-        'type': set(), 'profile': set(), 'channel': set(), 'chain': set()
-    }
-    
-    print("\n--- Coletando IDs de dimensão a partir dos PDVs ---")
-    for pdv in pdv_details:
-        if not isinstance(pdv, dict): continue
-        if pdv.get('macroregional'): dimension_ids['macroregional'].add(pdv.get('macroregional').get('id'))
-        if pdv.get('regional'): dimension_ids['regional'].add(pdv.get('regional').get('id'))
-        if pdv.get('banner'): dimension_ids['banner'].add(pdv.get('banner').get('id'))
-        if pdv.get('type'): dimension_ids['type'].add(pdv.get('type').get('id'))
-        if pdv.get('profile'): dimension_ids['profile'].add(pdv.get('profile').get('id'))
-        if pdv.get('channel'): dimension_ids['channel'].add(pdv.get('channel').get('id'))
-    
-    for key in dimension_ids:
-        dimension_ids[key].discard(None)
-
-    print("\n--- Buscando detalhes das dimensões de PDV ---")
-    macroregionals = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals/{{id}}", dimension_ids['macroregional'])
-    regionals = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/regionals/{{id}}", dimension_ids['regional'])
-    banners = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/banners/{{id}}", dimension_ids['banner'])
-    
-    dimension_ids['chain'] |= {b.get('chain', {}).get('id') for b in banners if isinstance(b, dict)}
-    dimension_ids['chain'].discard(None)
-    
-    chains = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/chains/{{id}}", dimension_ids['chain'])
-    
-    pos_types = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v1/pointofsaletype/{{id}}", dimension_ids['type'])
-    pos_profiles = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/pointofsaleprofile/{{id}}", dimension_ids['profile'])
-    channels = _fetch_details_in_parallel(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels/{{id}}", dimension_ids['channel'])
-
+def process_point_of_sales() -> list:
+    raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/pointofsales")
+    print("\n--- Processando dataset de Pontos de Venda para o formato final ---")
+    processed_data = []
     to_str = lambda v: str(v) if v is not None else None
+    for pdv in raw_data:
+        if not isinstance(pdv, dict): continue
+        row = {
+            'IDPDV': to_str(pdv.get('id')),
+            'RAZAOSOCIAL': pdv.get('legalBusinessName'),
+            'FANTASIA': pdv.get('tradeName'),
+            'CODCLI': to_str(pdv.get('code')),
+            'CNPJ': pdv.get('companyRegistrationNumber'),
+            'ISACTIVE': pdv.get('active'),
+            'IDMACROREGIONAL': to_str(pdv['macroregional'].get('id')) if pdv.get('macroregional') else None,
+            'IDREGIONAL': to_str(pdv['regional'].get('id')) if pdv.get('regional') else None,
+            'IDBANNER': to_str(pdv['banner'].get('id')) if pdv.get('banner') else None,
+            'IDTIPO': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
+            'IDPERFIL': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
+            'IDCANAL': to_str(pdv['channel'].get('id')) if pdv.get('channel') else None
+        }
+        processed_data.append(row)
+    return processed_data
+
+def process_pdv_dimensions():
+    print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PDV ---")
     
-    processed_pdvs = [{
-        'IDPDV': to_str(pdv.get('id')), 'RAZAOSOCIAL': pdv.get('legalBusinessName'),
-        'FANTASIA': pdv.get('tradeName'), 'CODCLI': to_str(pdv.get('code')),
-        'CNPJ': pdv.get('companyRegistrationNumber'), 'TELEFONE': pdv.get('phone'),
-        'ISACTIVE': pdv.get('active'),
-        'IDMACROREGIONAL': to_str(pdv['macroregional'].get('id')) if pdv.get('macroregional') else None,
-        'IDREGIONAL': to_str(pdv['regional'].get('id')) if pdv.get('regional') else None,
-        'IDBANNER': to_str(pdv['banner'].get('id')) if pdv.get('banner') else None,
-        'IDTIPO': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
-        'IDPERFIL': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
-        'IDCANAL': to_str(pdv['channel'].get('id')) if pdv.get('channel') else None
-    } for pdv in pdv_details]
+    macroregionals = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals")]
+    regionals = [{'ID': i.get('id'), 'NOME': i.get('name'), 'IDMACROREGIONAL': i.get('macroregional', {}).get('id')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/regionals")]
+    banners = [{'ID': i.get('id'), 'NOME': i.get('name'), 'IDREDE': i.get('chain', {}).get('id')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/banners")]
+    chains = [{'ID': i.get('id'), 'NOME': i.get('name'), 'CODIGO': i.get('code')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/chains")]
+    channels = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels")]
+    
+    pos_types_raw = get_api_data(f"{INVOLVES_BASE_URL}/v1/pointofsaletype/find")
+    pos_types = []
+    if isinstance(pos_types_raw, list):
+        pos_types = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in pos_types_raw if isinstance(i, dict)]
+
+    pos_profiles_raw = get_api_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/pointofsaleprofile/find")
+    pos_profiles = []
+    if isinstance(pos_profiles_raw, list):
+        pos_profiles = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in pos_profiles_raw if isinstance(i, dict)]
 
     return {
-        "pdvs": processed_pdvs,
-        "macroregionals": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in macroregionals],
-        "regionals": [{'ID': item.get('id'), 'NOME': item.get('name'), 'IDMACROREGIONAL': item.get('macroregional', {}).get('id')} for item in regionals],
-        "banners": [{'ID': item.get('id'), 'NOME': item.get('name'), 'IDREDE': item.get('chain', {}).get('id')} for item in banners],
-        "chains": [{'ID': item.get('id'), 'NOME': item.get('name'), 'CODIGO': item.get('code')} for item in chains],
-        "pos_types": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in pos_types],
-        "pos_profiles": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in pos_profiles],
-        "channels": [{'ID': item.get('id'), 'NOME': item.get('name')} for item in channels],
+        "macroregionals": macroregionals,
+        "regionals": regionals,
+        "banners": banners,
+        "chains": chains,
+        "pos_types": pos_types,
+        "pos_profiles": pos_profiles,
+        "channels": channels,
     }
 
 def process_employees() -> list:
@@ -304,3 +290,106 @@ def process_scheduled_visits(all_employees: list) -> list:
     
     print(f"\nExtração de visitas agendadas concluída. Total de {len(all_visits)} visitas encontradas.")
     return all_visits
+
+def process_surveys_and_answers(existing_survey_ids: set):
+    print("\n--- INICIANDO EXTRAÇÃO INCREMENTAL DE PESQUISAS E RESPOSTAS ---")
+    
+    surveys_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/surveys"
+    survey_summaries = get_api_data(surveys_url)
+    
+    if not survey_summaries or not isinstance(survey_summaries, list):
+        print("Nenhuma pesquisa encontrada ou formato de resposta inesperado.")
+        return {"new_surveys": [], "new_answers": [], "new_form_ids": set()}
+    
+    all_survey_ids = {str(s['id']) for s in survey_summaries if s.get('id')}
+    new_survey_ids = all_survey_ids - existing_survey_ids
+    
+    if not new_survey_ids:
+        print("Nenhuma pesquisa nova para processar.")
+        return {"new_surveys": [], "new_answers": [], "new_form_ids": set()}
+
+    print(f"\n--- Processando detalhes de {len(new_survey_ids)} novas pesquisas (utilizando threads) ---")
+    detail_url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/surveys/{{id}}"
+    survey_details = _fetch_details_in_parallel(detail_url_template, new_survey_ids)
+
+    print("\n--- Formatando datasets de Pesquisas e Respostas ---")
+    processed_surveys, processed_answers = [], []
+    new_form_ids = set()
+    to_str = lambda v: str(v) if v is not None else None
+
+    for survey in survey_details:
+        if not isinstance(survey, dict): continue
+        survey_id = survey.get('id')
+        form_id = survey.get('form', {}).get('id')
+        if form_id: new_form_ids.add(form_id)
+
+        survey_row = {
+            'IDPESQUISA': to_str(survey_id),
+            'LABEL': survey.get('label'),
+            'STATUS': survey.get('status'),
+            'DATAFIM': survey.get('expirationDate'),
+            'DATARESPOSTA': survey.get('responseDate'),
+            'IDPROJETO': to_str(survey.get('projectId')),
+            'IDPDV': to_str(survey.get('pointOfSaleId')),
+            'IDCOLABORADOR': to_str(survey.get('ownerId')),
+            'IDFORMULARIO': to_str(form_id)
+        }
+        processed_surveys.append(survey_row)
+
+        for answer in survey.get('answers', []):
+            if not isinstance(answer, dict): continue
+            answer_row = {
+                'IDRESPOSTA': to_str(answer.get('id')),
+                'IDPESQUISA': to_str(survey_id),
+                'VALOR': answer.get('value'),
+                'PONTUACAO': answer.get('score'),
+                'IDPERGUNTA': to_str(answer['question'].get('id')) if answer.get('question') else None,
+                'TIPOPERGUNTA': answer.get('question', {}).get('type'),
+                'IDITEM': to_str(answer['item'].get('id')) if answer.get('item') else None
+            }
+            processed_answers.append(answer_row)
+            
+    return {"new_surveys": processed_surveys, "new_answers": processed_answers, "new_form_ids": new_form_ids}
+
+def process_forms_and_fields(form_ids: set):
+    print("\n--- INICIANDO EXTRAÇÃO DE FORMULÁRIOS E CAMPOS ---")
+    if not form_ids:
+        print("Nenhum novo ID de formulário para buscar.")
+        return {"forms": [], "form_fields": []}
+    
+    url_template = f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/form/{{id}}"
+    form_details = _fetch_details_in_parallel(url_template, form_ids)
+
+    processed_forms = []
+    processed_fields = []
+    to_str = lambda v: str(v) if v is not None else None
+
+    for form in form_details:
+        if not isinstance(form, dict): continue
+        form_id = form.get('id')
+        
+        form_row = {
+            'IDFORMULARIO': to_str(form_id),
+            'NOME': form.get('name'),
+            'DESCRICAO': form.get('description'),
+            'PROPOSITO': form.get('formPurpose'),
+            'ISACTIVE': form.get('active')
+        }
+        processed_forms.append(form_row)
+
+        for field in form.get('formFields', []):
+            if not isinstance(field, dict): continue
+            info = field.get('information', {})
+            field_row = {
+                'IDCAMPO': to_str(field.get('id')),
+                'IDFORMULARIO': to_str(form_id),
+                'LABEL': info.get('label'),
+                'TIPO': info.get('informationType'),
+                'ORDEM': field.get('order'),
+                'OBRIGATORIO': field.get('required'),
+                'OCULTO': field.get('hidden'),
+                'SISTEMA': field.get('system')
+            }
+            processed_fields.append(field_row)
+
+    return {"forms": processed_forms, "form_fields": processed_fields}

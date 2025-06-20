@@ -24,11 +24,17 @@ def get_api_data(url: str):
             return data
             
         except requests.exceptions.RequestException as e:
-            if e.response is not None and e.response.status_code == 404:
-                pass
-            else:
-                print(f"\n[Tentativa {attempt + 1}/{max_retries}] Erro na requisição para a URL {url}: {e}")
+            print(f"\n[Tentativa {attempt + 1}/{max_retries}] Erro na requisição para a URL {url}: {e}")
             
+            if e.response is not None:
+                try:
+                    error_details = e.response.json()
+                    print("  > Detalhes do erro da API:")
+                    print(json.dumps(error_details, indent=2, ensure_ascii=False))
+                except json.JSONDecodeError:
+                    if e.response.status_code != 404:
+                        print(f"  > A resposta de erro do servidor não era um JSON válido: {e.response.text}")
+
             if attempt < max_retries - 1:
                 time.sleep(attempt + 1)
             else:
