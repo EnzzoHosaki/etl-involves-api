@@ -9,7 +9,8 @@ from data_processor import (
     process_leaves,
     process_scheduled_visits,
     process_surveys_and_answers,
-    process_forms_and_fields
+    process_forms_and_fields,
+    process_itineraries_and_noshows
 )
 from file_handler import save_to_excel, read_excel_column_as_set
 
@@ -32,7 +33,7 @@ def run_etl():
     pdv_data = process_point_of_sales()
     save_to_excel(pdv_data, 'involves_pdv')
     
-    pdv_dims = process_pdv_dimensions()
+    pdv_dims = process_pdv_dimensions(pdv_data)
     save_to_excel(pdv_dims.get("macroregionals"), 'involves_macroregionais')
     save_to_excel(pdv_dims.get("regionals"), 'involves_regionais')
     save_to_excel(pdv_dims.get("chains"), 'involves_redes')
@@ -47,7 +48,7 @@ def run_etl():
     supervisores_data = process_supervisors(colaboradores_data)
     save_to_excel(supervisores_data, 'involves_supervisores')
 
-    print("\n--- EXECUTANDO CARGA INCREMENTAL ---")
+    print("\n--- EXECUTANDO CARGA INCREMENTAL E DADOS TRANSACIONAIS ---")
 
     existing_survey_ids = read_excel_column_as_set('involves_pesquisas', 'IDPESQUISA')
     survey_data = process_surveys_and_answers(existing_survey_ids)
@@ -65,6 +66,11 @@ def run_etl():
     
     visitas_data = process_scheduled_visits(colaboradores_data)
     save_to_excel(visitas_data, 'involves_visitas_agendadas')
+    
+    itinerary_data = process_itineraries_and_noshows()
+    save_to_excel(itinerary_data.get("itineraries"), 'involves_roteiros')
+    save_to_excel(itinerary_data.get("noshows"), 'involves_justificativas_falta')
+
 
     print("\n--- PROCESSO DE ETL CONCLUÍDO ---")
 
