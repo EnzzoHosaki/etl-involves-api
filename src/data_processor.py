@@ -36,8 +36,7 @@ def _fetch_paginated_data(base_url: str) -> list:
         items_on_page = []
         if isinstance(response_data, list):
             items_on_page = response_data
-            if not items_on_page:
-                break
+            if not items_on_page: break
         elif isinstance(response_data, dict):
             items_on_page = response_data.get('items', [])
             if total_pages is None:
@@ -59,22 +58,18 @@ def _fetch_paginated_data(base_url: str) -> list:
     return all_items
 
 
-def _fetch_details_in_parallel(url_template: str, ids: set, attach_id_field_name: str = None) -> list:
+def _fetch_details_in_parallel(url_template: str, ids: set, endpoint_name_for_log: str, attach_id_field_name: str = None, suppress_404: bool = False) -> list:
     valid_ids = {item_id for item_id in ids if item_id}
     if not valid_ids:
         return []
     
     processed_details = []
-    MAX_WORKERS = 5
+    MAX_WORKERS = 10
     total_ids = len(valid_ids)
-    try:
-        endpoint_name = url_template.split('/')[-2]
-    except IndexError:
-        endpoint_name = "desconhecido"
 
     def fetch_single_detail(item_id):
         detail_url = url_template.format(id=item_id)
-        return get_api_data(detail_url)
+        return get_api_data(detail_url, suppress_404=suppress_404)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_id = {executor.submit(fetch_single_detail, item_id): item_id for item_id in valid_ids}
@@ -87,23 +82,42 @@ def _fetch_details_in_parallel(url_template: str, ids: set, attach_id_field_name
                     processed_details.append(result)
             except Exception as exc: 
                 print(f'Um item com ID atrelado a {future_to_id[future]} gerou uma exceção: {exc}')
-            print(f"\r  > Detalhes de '{endpoint_name}' processados: {i + 1}/{total_ids}", end="", flush=True)
+            print(f"\r  > Detalhes de '{endpoint_name_for_log}' processados: {i + 1}/{total_ids}", end="", flush=True)
 
     print()
     return processed_details
 
 def process_product_dimensions():
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PRODUTO ---")
+    to_str = lambda v: str(v) if v is not None else None
     
-    brands = [{'ID': b.get('id'), 'NOME': b.get('name')} for b in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/brands") if isinstance(b, dict)]
-    supercategories = [{'ID': sc.get('id'), 'NOME': sc.get('name')} for sc in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/supercategories") if isinstance(sc, dict)]
-    productlines = [{'ID': pl.get('id'), 'NOME': pl.get('name')} for pl in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/productlines") if isinstance(pl, dict)]
+    brands_raw = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/brands")
+    brands = [{'IDMARCA': to_str(b.get('id')), 'NOMEMARCA': b.get('name')} for b in brands_raw if isinstance(b, dict)]
     
-    return {
-        "brands": brands,
-        "supercategories": supercategories,
-        "productlines": productlines
-    }
+    supercategories_raw = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/supercategories")
+    supercategories = [{'IDSUPERCATEGORIA': to_str(sc.get('id')), 'NOMESUPERCATEGORIA': sc.get('name')} for sc in supercategories_raw if isinstance(sc, dict)]
+    
+    productlines_raw = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/productlines")
+    productlines = []
+    for pl in productlines_raw:
+        if not isinstance(pl, dict): continue
+        custom_fields_list = pl.get('customFields', [])
+        row = {
+            'IDLINHAPRODUTO': to_str(pl.get('id')),
+            'NOMELINHAPRODUTO': pl.get('name'),
+            'CODIGOBARRAS': to_str(pl.get('barCode')),
+            'CODIGOEXTERNO': to_str(pl.get('externalCode')),
+            'ISACTIVE': pl.get('active'),
+            'ISAPPROVED': pl.get('approved'),
+            'ORIGEM': pl.get('origin'),
+            'DATAATUALIZACAO': pl.get('updatedAt'),
+            'IDMARCA': to_str(pl['brand'].get('id')) if pl.get('brand') else None,
+            'IDCATEGORIA': to_str(pl['category'].get('id')) if pl.get('category') else None,
+            'CUSTOMFIELDS': json.dumps(custom_fields_list) if custom_fields_list else None
+        }
+        productlines.append(row)
+
+    return {"brands": brands, "supercategories": supercategories, "productlines": productlines}
 
 def process_skus() -> list:
     raw_data = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/skus")
@@ -114,7 +128,7 @@ def process_skus() -> list:
         if not isinstance(sku, dict): continue
         custom_fields_list = sku.get('customFields', [])
         row = {
-            'IDPROD': to_str(sku.get('id')), 'NOMEPROD': sku.get('name'),
+            'IDSKU': to_str(sku.get('id')), 'NOMESKU': sku.get('name'),
             'ISACTIVE': sku.get('active'), 'EAN': to_str(sku.get('barCode')),
             'CODPROD': to_str(sku.get('integrationCode')),
             'IDLINHAPRODUTO': to_str(sku['productLine'].get('id')) if sku.get('productLine') else None,
@@ -127,23 +141,23 @@ def process_skus() -> list:
     return processed_data
 
 def process_categories_from_skus(all_skus: list) -> list:
-    print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÃO DE CATEGORIAS (VIA SKUS) ---")
+    print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÃO DE CATEGORias (VIA SKUS) ---")
     if not all_skus:
         print("Nenhum SKU encontrado para extrair categorias.")
         return []
-
+    to_str = lambda v: str(v) if v is not None else None
     category_ids = {sku.get('IDCATEGORIA') for sku in all_skus if sku.get('IDCATEGORIA')}
     
     url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/categories/{{id}}"
-    category_details = _fetch_details_in_parallel(url_template, category_ids)
+    category_details = _fetch_details_in_parallel(url_template, category_ids, "Categorias")
 
     processed_data = []
     for c in category_details:
         if not isinstance(c, dict): continue
         row = {
-            'ID': c.get('id'), 
-            'NOME': c.get('name'), 
-            'IDSUPERCATEGORIA': c['supercategory'].get('id') if c.get('supercategory') else None
+            'IDCATEGORIA': to_str(c.get('id')), 
+            'NOMECATEGORIA': c.get('name'), 
+            'IDSUPERCATEGORIA': to_str(c['supercategory'].get('id')) if c.get('supercategory') else None
         }
         processed_data.append(row)
     return processed_data
@@ -157,16 +171,14 @@ def process_point_of_sales() -> list:
         if not isinstance(pdv, dict): continue
         row = {
             'IDPDV': to_str(pdv.get('id')),
-            'RAZAOSOCIAL': pdv.get('legalBusinessName'),
-            'FANTASIA': pdv.get('tradeName'),
-            'CODCLI': to_str(pdv.get('code')),
-            'CNPJ': pdv.get('companyRegistrationNumber'),
+            'RAZAOSOCIAL': pdv.get('legalBusinessName'), 'FANTASIA': pdv.get('tradeName'),
+            'CODCLI': to_str(pdv.get('code')), 'CNPJ': pdv.get('companyRegistrationNumber'),
             'ISACTIVE': pdv.get('active'),
             'IDMACROREGIONAL': to_str(pdv['macroregional'].get('id')) if pdv.get('macroregional') else None,
             'IDREGIONAL': to_str(pdv['regional'].get('id')) if pdv.get('regional') else None,
             'IDBANNER': to_str(pdv['banner'].get('id')) if pdv.get('banner') else None,
-            'IDTIPO': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
-            'IDPERFIL': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
+            'IDTIPOPDV': to_str(pdv['type'].get('id')) if pdv.get('type') else None,
+            'IDPERFILPDV': to_str(pdv['profile'].get('id')) if pdv.get('profile') else None,
             'IDCANAL': to_str(pdv['channel'].get('id')) if pdv.get('channel') else None
         }
         processed_data.append(row)
@@ -174,41 +186,42 @@ def process_point_of_sales() -> list:
 
 def process_pdv_dimensions(pdv_data: list):
     print("\n--- INICIANDO EXTRAÇÃO DE DIMENSÕES DE PDV ---")
-
     if not pdv_data:
         print("Nenhum dado de PDV fornecido. Impossível extrair dimensões.")
         return {"macroregionals": [], "regionals": [], "chains": [], "banners": [], "pos_types": [], "pos_profiles": [], "channels": []}
-
+    
+    to_str = lambda v: str(v) if v is not None else None
     print("\n- Extraindo dimensões a partir dos dados de PDVs...")
     macroregional_ids = {d.get('IDMACROREGIONAL') for d in pdv_data if d.get('IDMACROREGIONAL')}
     regional_ids = {d.get('IDREGIONAL') for d in pdv_data if d.get('IDREGIONAL')}
     banner_ids = {d.get('IDBANNER') for d in pdv_data if d.get('IDBANNER')}
 
     macroregional_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/macroregionals/{{id}}"
-    macroregional_details = _fetch_details_in_parallel(macroregional_url, macroregional_ids)
-    macroregionals = [{'ID': m.get('id'), 'NOME': m.get('name')} for m in macroregional_details if m]
+    macroregional_details = _fetch_details_in_parallel(macroregional_url, macroregional_ids, "Macrorregionais")
+    macroregionals = [{'IDMACROREGIONAL': to_str(m.get('id')), 'NOMEMACROREGIONAL': m.get('name')} for m in macroregional_details if m]
     
     regional_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/regionals/{{id}}"
-    regional_details = _fetch_details_in_parallel(regional_url, regional_ids)
-    regionals = [{'ID': r.get('id'), 'NOME': r.get('name'), 'IDMACROREGIONAL': r['macroregional'].get('id') if r.get('macroregional') else None} for r in regional_details if r]
+    regional_details = _fetch_details_in_parallel(regional_url, regional_ids, "Regionais")
+    regionals = [{'IDREGIONAL': to_str(r.get('id')), 'NOMEREGIONAL': r.get('name'), 'IDMACROREGIONAL': to_str(r['macroregional'].get('id')) if r.get('macroregional') else None} for r in regional_details if r]
 
     banner_url = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/banners/{{id}}"
-    banner_details = _fetch_details_in_parallel(banner_url, banner_ids)
-    banners = [{'ID': b.get('id'), 'NOME': b.get('name'), 'IDREDE': b['chain'].get('id') if b.get('chain') else None} for b in banner_details if b]
+    banner_details = _fetch_details_in_parallel(banner_url, banner_ids, "Banners")
+    banners = [{'IDBANNER': to_str(b.get('id')), 'NOMEBANNER': b.get('name'), 'IDREDE': to_str(b['chain'].get('id')) if b.get('chain') else None} for b in banner_details if b]
 
     chain_ids = {b.get('IDREDE') for b in banners if b.get('IDREDE')}
     chain_url = f"{INVOLVES_BASE_URL}/v3/chains/{{id}}"
-    chain_details = _fetch_details_in_parallel(chain_url, chain_ids)
-    chains = [{'ID': c.get('id'), 'NOME': c.get('name'), 'CODIGO': c.get('code')} for c in chain_details if c]
+    chain_details = _fetch_details_in_parallel(chain_url, chain_ids, "Redes")
+    chains = [{'IDREDE': to_str(c.get('id')), 'NOMEREDE': c.get('name'), 'CODIGOREDE': c.get('code')} for c in chain_details if c]
 
     print("\n- Extraindo outras dimensões de PDV (Canais, Tipos, Perfis)...")
-    channels = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels")]
+    channels_raw = _fetch_paginated_data(f"{INVOLVES_BASE_URL}/v3/pointofsalechannels")
+    channels = [{'IDCANAL': to_str(i.get('id')), 'NOMECANAL': i.get('name')} for i in channels_raw]
     
     pos_types_raw = get_api_data(f"{INVOLVES_BASE_URL}/v1/pointofsaletype/find")
-    pos_types = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in pos_types_raw if isinstance(i, dict)] if isinstance(pos_types_raw, list) else []
+    pos_types = [{'IDTIPOPDV': to_str(i.get('id')), 'NOMETIPOPDV': i.get('name')} for i in pos_types_raw if isinstance(i, dict)] if isinstance(pos_types_raw, list) else []
 
     pos_profiles_raw = get_api_data(f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/pointofsaleprofile/find")
-    pos_profiles = [{'ID': i.get('id'), 'NOME': i.get('name')} for i in pos_profiles_raw if isinstance(i, dict)] if isinstance(pos_profiles_raw, list) else []
+    pos_profiles = [{'IDPERFILPDV': to_str(i.get('id')), 'NOMEPERFILPDV': i.get('name')} for i in pos_profiles_raw if isinstance(i, dict)] if isinstance(pos_profiles_raw, list) else []
 
     return {"macroregionals": macroregionals, "regionals": regionals, "banners": banners, "chains": chains, "pos_types": pos_types, "pos_profiles": pos_profiles, "channels": channels}
 
@@ -229,8 +242,8 @@ def process_employees() -> list:
             'IDCOLABORADOR': to_str(emp.get('id')), 'NOME': emp.get('name'), 'CARGO': emp.get('role'), 'LOGIN': emp.get('login'),
             'EMAIL': emp.get('email'), 'TELEFONE': emp.get('workPhone'), 'RG': to_str(emp.get('nationalIdCard1')), 'CPF': to_str(emp.get('nationalIdCard2')),
             'NOMEPAI': emp.get('fatherName'), 'NOMEMAE': emp.get('motherName'), 'ISACTIVE': emp.get('enabled'),
-            'IDGRUPO': to_str(emp['userGroup'].get('id')) if emp.get('userGroup') else None, 'GRUPO': emp['userGroup'].get('name') if emp.get('userGroup') else None,
-            'IDPERFIL': to_str(emp['profile'].get('id')) if emp.get('profile') else None, 'PERFIL': emp['profile'].get('name') if emp.get('profile') else None,
+            'IDGRUPOCOLABORADOR': to_str(emp['userGroup'].get('id')) if emp.get('userGroup') else None, 'NOMEGRUPOCOLABORADOR': emp['userGroup'].get('name') if emp.get('userGroup') else None,
+            'IDPERFILCOLABORADOR': to_str(emp['profile'].get('id')) if emp.get('profile') else None, 'NOMEPERFILCOLABORADOR': emp['profile'].get('name') if emp.get('profile') else None,
             'IDSUPERVISOR': to_str(emp['employeeEnvironmentLeader'].get('id')) if emp.get('employeeEnvironmentLeader') else None,
             'ENDERECO': address.get('address') if address else None, 'NUMERO': to_str(address.get('number')) if address else None,
             'COMPLEMENTO': address.get('complement') if address else None, 'BAIRRO': address.get('neighborhood') if address else None,
@@ -246,6 +259,7 @@ def process_employees() -> list:
 def process_supervisors(all_employees: list) -> list:
     print("\n--- Criando dataset de Supervisores ---")
     if not all_employees: return []
+    to_str = lambda v: str(v) if v is not None else None
     
     supervisors_map = {}
     employee_map = {emp.get('IDCOLABORADOR'): emp.get('NOME') for emp in all_employees}
@@ -256,9 +270,9 @@ def process_supervisors(all_employees: list) -> list:
             leader_name = employee_map.get(supervisor_id, "Não encontrado")
             supervisors_map[supervisor_id] = leader_name
     
-    processed_data = [{'ID': id, 'NOME': name} for id, name in supervisors_map.items()]
+    processed_data = [{'IDSUPERVISOR': to_str(id), 'NOMESUPERVISOR': name} for id, name in supervisors_map.items()]
     if processed_data:
-        processed_data.sort(key=lambda x: int(x['ID']) if x.get('ID') and x['ID'].isdigit() else 0)
+        processed_data.sort(key=lambda x: int(x['IDSUPERVISOR']) if x.get('IDSUPERVISOR') and x['IDSUPERVISOR'].isdigit() else 0)
     return processed_data
 
 def process_leaves() -> list:
@@ -268,11 +282,11 @@ def process_leaves() -> list:
     for leave in raw_data:
         if not isinstance(leave, dict): continue
         row = {
-            'IDAFFASTAIMENTO': to_str(leave.get('id')), 'DATAINICIO': leave.get('startDate'), 'DATAFIM': leave.get('endDate'),
+            'IDAFASTAMENTO': to_str(leave.get('id')), 'DATAINICIO': leave.get('startDate'), 'DATAFIM': leave.get('endDate'),
             'MOTIVO': leave.get('reason'), 'OBSERVACAO': leave.get('note'),
             'IDCOLABORADOR': to_str(leave['employee'].get('id')) if leave.get('employee') else None,
-            'IDREGISTRADOPOR': to_str(leave['registeredBy'].get('id')) if leave.get('registeredBy') else None,
-            'IDSUBSTITUTO': to_str(leave['substitute'].get('id')) if leave.get('substitute') else None
+            'IDCOLABORADORREGISTRO': to_str(leave['registeredBy'].get('id')) if leave.get('registeredBy') else None,
+            'IDCOLABORADORSUBSTITUTO': to_str(leave['substitute'].get('id')) if leave.get('substitute') else None
         }
         processed_data.append(row)
     return processed_data
@@ -317,7 +331,8 @@ def process_surveys_and_answers(existing_survey_ids: set):
         print("Nenhuma pesquisa encontrada ou formato de resposta inesperado.")
         return {"new_surveys": [], "new_answers": [], "new_form_ids": set()}
     
-    all_survey_ids = {str(s['id']) for s in survey_summaries if s.get('id')}
+    to_str = lambda v: str(v) if v is not None else None
+    all_survey_ids = {to_str(s['id']) for s in survey_summaries if s.get('id')}
     new_survey_ids = all_survey_ids - existing_survey_ids
     if not new_survey_ids:
         print("Nenhuma pesquisa nova para processar.")
@@ -325,15 +340,14 @@ def process_surveys_and_answers(existing_survey_ids: set):
 
     print(f"\n--- Processando detalhes de {len(new_survey_ids)} novas pesquisas (utilizando threads) ---")
     detail_url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/surveys/{{id}}"
-    survey_details = _fetch_details_in_parallel(detail_url_template, new_survey_ids)
+    survey_details = _fetch_details_in_parallel(detail_url_template, new_survey_ids, "Pesquisas")
 
     processed_surveys, processed_answers, new_form_ids = [], [], set()
-    to_str = lambda v: str(v) if v is not None else None
     for survey in survey_details:
         if not isinstance(survey, dict): continue
         survey_id, form = survey.get('id'), survey.get('form')
         form_id = form.get('id') if form else None
-        if form_id: new_form_ids.add(str(form_id))
+        if form_id: new_form_ids.add(to_str(form_id))
         survey_row = {
             'IDPESQUISA': to_str(survey_id), 'LABEL': survey.get('label'), 'STATUS': survey.get('status'), 'DATAFIM': survey.get('expirationDate'),
             'DATARESPOSTA': survey.get('responseDate'), 'IDPROJETO': to_str(survey.get('projectId')), 'IDPDV': to_str(survey.get('pointOfSaleId')),
@@ -358,7 +372,7 @@ def process_forms_and_fields(form_ids: set):
         return {"forms": [], "form_fields": []}
     
     url_template = f"{INVOLVES_BASE_URL}/v1/{INVOLVES_ENVIRONMENT_ID}/form/{{id}}"
-    form_details = _fetch_details_in_parallel(url_template, form_ids)
+    form_details = _fetch_details_in_parallel(url_template, form_ids, "Formulários")
     processed_forms, processed_fields = [], []
     to_str = lambda v: str(v) if v is not None else None
     for form in form_details:
@@ -390,7 +404,6 @@ def process_itineraries_and_noshows():
 
     total_itineraries_found = 0
     for i, date in enumerate(date_range):
-        # A barra de progresso agora fica fora do _fetch_paginated_data
         print(f"\r  > Processando data: {date.strftime('%Y-%m-%d')} ({i + 1}/{len(date_range)})", end="", flush=True)
         url = f"{INVOLVES_BASE_URL}/v2/environments/{INVOLVES_ENVIRONMENT_ID}/itinerary?date={date.strftime('%Y-%m-%d')}&ignoreInactive=true"
         daily_itineraries = _fetch_paginated_data(url)
@@ -407,11 +420,10 @@ def process_itineraries_and_noshows():
     for item in all_itineraries_raw:
         if not isinstance(item, dict): continue
         visit_id = item.get('itineraryId')
-        if visit_id:
-            visit_ids.add(visit_id)
+        if visit_id: visit_ids.add(visit_id)
         
         row = {
-            'IDVISITA': to_str(visit_id), 
+            'IDROTEIROVISITA': to_str(visit_id), 
             'IDCOLABORADOR': to_str(item.get('employeeId')), 
             'NOMECOLABORADOR': item.get('employeeName'), 
             'IDPDV': to_str(item.get('pointOfSaleId')), 
@@ -423,14 +435,14 @@ def process_itineraries_and_noshows():
 
     print(f"\n--- Buscando detalhes de 'No Show' para {len(visit_ids)} visitas únicas ---")
     noshow_url_template = f"{INVOLVES_BASE_URL}/v3/environments/{INVOLVES_ENVIRONMENT_ID}/visits/{{id}}/noshow"
-    noshow_details = _fetch_details_in_parallel(noshow_url_template, visit_ids, attach_id_field_name='IDVISITA')
+    noshow_details = _fetch_details_in_parallel(noshow_url_template, visit_ids, "Justificativas de Falta", attach_id_field_name='IDROTEIROVISITA', suppress_404=True)
 
     processed_noshows = []
     for item in noshow_details:
         if not isinstance(item, dict): continue
         row = {
             'IDJUSTIFICATIVA': to_str(item.get('id')),
-            'IDVISITA': to_str(item.get('IDVISITA')),
+            'IDROTEIROVISITA': to_str(item.get('IDROTEIROVISITA')),
             'IDMOTIVO': to_str(item.get('excuseId')),
             'DATA': item.get('date'), 'MOTIVO': item.get('excuse'),
             'OBSERVACAO': item.get('note'), 'STATUS': item.get('status'),
