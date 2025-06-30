@@ -71,7 +71,7 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 #### 1. Produtos (SKUs)
 
-- **Arquivo:** `involves_produtos_...`
+- **Arquivo:** `involves_produtos.xlsx`
 
 | Campo na API (`sku`) | Coluna no Dataset  | Descrição                                                       |
 | :------------------- | :----------------- | :-------------------------------------------------------------- |
@@ -88,7 +88,7 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 #### 2. Pontos de Venda (PDVs)
 
-- **Arquivo:** `involves_pdv_...`
+- **Arquivo:** `involves_pdv.xlsx`
 
 | Campo na API (`pointofsale`) | Coluna no Dataset | Descrição                                                   |
 | :--------------------------- | :---------------- | :---------------------------------------------------------- |
@@ -97,7 +97,6 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 | `tradeName`                  | `FANTASIA`        | Nome Fantasia do PDV.                                       |
 | `code`                       | `CODCLI`          | Código interno do cliente/PDV.                              |
 | `companyRegistrationNumber`  | `CNPJ`            | CNPJ do estabelecimento.                                    |
-| `phone`                      | `TELEFONE`        | Telefone de contato do PDV.                                 |
 | `active`                     | `ISACTIVE`        | Status booleano (True/False) indicando se o PDV está ativo. |
 | `macroregional.id`           | `IDMACROREGIONAL` | Chave estrangeira para a tabela de Macrorregionais.         |
 | `regional.id`                | `IDREGIONAL`      | Chave estrangeira para a tabela de Regionais.               |
@@ -108,7 +107,7 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 #### 3. Colaboradores
 
-- **Arquivo:** `involves_colaboradores_...`
+- **Arquivo:** `involves_colaboradores.xlsx`
 
 | Campo na API (`employeeenvironment`) | Coluna no Dataset | Descrição                                                           |
 | :----------------------------------- | :---------------- | :------------------------------------------------------------------ |
@@ -138,7 +137,7 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 #### 4. Afastamentos de Colaboradores
 
-- **Arquivo:** `involves_afastamentos_...`
+- **Arquivo:** `involves_afastamentos.xlsx`
 
 | Campo na API (`leave`) | Coluna no Dataset | Descrição                                            |
 | :--------------------- | :---------------- | :--------------------------------------------------- |
@@ -153,7 +152,7 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 
 #### 5. Visitas Agendadas
 
-- **Arquivo:** `involves_visitas_agendadas_...`
+- **Arquivo:** `involves_visitas_agendadas.xlsx`
 
 | Campo na API (`scheduledvisit`) | Coluna no Dataset | Descrição                                                   |
 | :------------------------------ | :---------------- | :---------------------------------------------------------- |
@@ -164,61 +163,106 @@ O script irá processar cada entidade e salvar os arquivos resultantes na pasta 
 | `expectedEnd`                   | `FIMESPERADO`     | Horário de término esperado da visita.                      |
 | `visited`                       | `FOIVISITADO`     | Status booleano (True/False) indicando se a visita ocorreu. |
 
+#### 6. Pesquisas
+
+- **Arquivo:** `involves_pesquisas.xlsx` (Carga Incremental)
+
+| Campo na API (`survey`) | Coluna no Dataset |
+| :---------------------- | :---------------- |
+| `id`                    | `IDPESQUISA`      |
+| `label`                 | `LABEL`           |
+| `status`                | `STATUS`          |
+| `expirationDate`        | `DATAFIM`         |
+| `responseDate`          | `DATARESPOSTA`    |
+| `projectId`             | `IDPROJETO`       |
+| `pointOfSaleId`         | `IDPDV`           |
+| `ownerId`               | `IDCOLABORADOR`   |
+| `form.id`               | `IDFORMULARIO`    |
+
+#### 7. Respostas de Pesquisas
+
+- **Arquivo:** `involves_respostas.xlsx` (Carga Incremental)
+
+| Campo na API (`answer`) | Coluna no Dataset |
+| :---------------------- | :---------------- |
+| `id`                    | `IDRESPOSTA`      |
+| (do objeto survey)      | `IDPESQUISA`      |
+| `value`                 | `VALOR`           |
+| `score`                 | `PONTUACAO`       |
+| `question.id`           | `IDPERGUNTA`      |
+| `question.type`         | `TIPOPERGUNTA`    |
+| `item.id`               | `IDITEM`          |
+
 ### Tabelas de Dimensão
 
 ---
 
-#### 6. Marcas
+#### 8. Marcas
 
-- **Arquivo:** `involves_marcas_...`
+- **Arquivo:** `involves_marcas.xlsx`
 - **Colunas:** `ID`, `NOME`
 
-#### 7. Categorias
+#### 9. Categorias
 
-- **Arquivo:** `involves_categorias_...`
+- **Arquivo:** `involves_categorias.xlsx`
 - **Colunas:** `ID`, `NOME`, `IDSUPERCATEGORIA`
 
-#### 8. Supercategorias
+#### 10. Supercategorias
 
-- **Arquivo:** `involves_supercategorias_...`
+- **Arquivo:** `involves_supercategorias.xlsx`
 - **Colunas:** `ID`, `NOME`
 
-#### 9. Linhas de Produto
+#### 11. Linhas de Produto
 
-- **Arquivo:** `involves_linhas_de_produto_...`
+- **Arquivo:** `involves_linhas_de_produto.xlsx`
 - **Colunas:** `ID`, `NOME`
 
-#### 10. Macrorregionais
+#### 12. Macrorregionais
 
-- **Arquivo:** `involves_macroregionais_...`
+- **Arquivo:** `involves_macroregionais.xlsx`
 - **Colunas:** `ID`, `NOME`
 
-#### 11. Regionais
+#### 13. Regionais
 
-- **Arquivo:** `involves_regionais_...`
+- **Arquivo:** `involves_regionais.xlsx`
 - **Colunas:** `ID`, `NOME`, `IDMACROREGIONAL`
 
-#### 12. Redes (Chains)
+#### 14. Redes (Chains)
 
-- **Arquivo:** `involves_redes_...`
+- **Arquivo:** `involves_redes.xlsx`
 - **Colunas:** `ID`, `NOME`, `CODIGO`
 
-#### 13. Banners (Bandeiras)
+#### 15. Banners (Bandeiras)
 
-- **Arquivo:** `involves_banners_...`
+- **Arquivo:** `involves_banners.xlsx`
 - **Colunas:** `ID`, `NOME`, `IDREDE`
 
-#### 14. Tipos de PDV
+#### 16. Tipos de PDV
 
-- **Arquivo:** `involves_tipos_pdv_...`
+- **Arquivo:** `involves_tipos_pdv.xlsx`
 - **Colunas:** `ID`, `NOME`
 
-#### 15. Perfis de PDV
+#### 17. Perfis de PDV
 
-- **Arquivo:** `involves_perfis_pdv_...`
+- **Arquivo:** `involves_perfis_pdv.xlsx`
 - **Colunas:** `ID`, `NOME`
 
-#### 16. Canais de Venda
+#### 18. Canais de Venda
 
-- **Arquivo:** `involves_canais_...`
+- **Arquivo:** `involves_canais.xlsx`
 - **Colunas:** `ID`, `NOME`
+
+#### 19. Supervisores
+
+- **Arquivo:** `involves_supervisores.xlsx`
+- **Colunas:** `ID`, `NOME`
+
+#### 20. Formulários
+
+- **Arquivo:** `involves_formularios.xlsx` (Carga Incremental)
+- **Colunas:** `IDFORMULARIO`, `NOME`, `DESCRICAO`, `PROPOSITO`, `ISACTIVE`
+
+#### 21. Campos de Formulário
+
+- **Arquivo:** `involves_formularios_campos.xlsx` (Carga Incremental)
+- **Colunas:** `IDCAMPO`, `IDFORMULARIO`, `LABEL`, `TIPO`, `ORDEM`, `OBRIGATORIO`, `OCULTO`, `SISTEMA`

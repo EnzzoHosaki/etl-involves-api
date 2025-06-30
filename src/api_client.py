@@ -5,7 +5,7 @@ from config import HEADERS
 
 _cache = {}
 
-def get_api_data(url: str):
+def get_api_data(url: str, suppress_404: bool = False):
     if url in _cache:
         return _cache[url]
 
@@ -22,19 +22,28 @@ def get_api_data(url: str):
             data = response.json()
             _cache[url] = data
             return data
-        except requests.exceptions.RequestException as e:
-            if e.response is not None and e.response.status_code == 404:
-                pass
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                if not suppress_404:
+                    print(f"\n[INFO] Recurso não encontrado (404) na URL: {url}")
+                break
             else:
-                print(f"\n[Tentativa {attempt + 1}/{max_retries}] Erro na requisição para a URL {url}: {e}")
-            
+                print(f"\n[Tentativa {attempt + 1}/{max_retries}] Erro HTTP {e.response.status_code} na requisição para a URL {url}")
+                if attempt < max_retries - 1:
+                    time.sleep(attempt + 1)
+                else:
+                    print(f"  > Desistindo após {max_retries} tentativas.")
+
+        except requests.exceptions.RequestException as e:
+            print(f"\n[Tentativa {attempt + 1}/{max_retries}] Erro de conexão para a URL {url}: {e}")
             if attempt < max_retries - 1:
                 time.sleep(attempt + 1)
             else:
-                if not (e.response is not None and e.response.status_code == 404):
-                    print(f"  > Desistindo após {max_retries} tentativas.")
-                return None
-        except requests.exceptions.JSONDecodeError:
-            print(f"Erro: A resposta da URL {url} não é um JSON válido.")
-            return None
+                print(f"  > Desistindo após {max_retries} tentativas.")
+        
+        except Exception as exc:
+            print(f"Ocorreu um erro inesperado durante a requisição para {url}: {exc}")
+            break
+
     return None
