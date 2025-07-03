@@ -9,6 +9,7 @@ INVOLVES_PASSWORD = os.getenv("INVOLVES_PASSWORD")
 INVOLVES_BASE_URL = os.getenv("INVOLVES_BASE_URL")
 INVOLVES_ENVIRONMENT_ID = os.getenv("INVOLVES_ENVIRONMENT_ID")
 
+BIGQUERY_DATASET = os.getenv("BIGQUERY_DATASET")
 _auth_string = f"{INVOLVES_USERNAME}:{INVOLVES_PASSWORD}"
 _base64_auth_string = base64.b64encode(_auth_string.encode("utf-8")).decode("utf-8")
 

@@ -1,5 +1,6 @@
 requests
-google-cloud-bigquery
-pandas
 python-dotenv
 openpyxl
+google-cloud-bigquery
+pandas
+pandas-gbq
